@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:http/browser_client.dart' as http;
+import 'package:http/http.dart' as http;
+
+import 'http_client_stub.dart'
+    if (dart.library.js_interop) 'http_client_web.dart';
 
 class ApiException implements Exception {
   ApiException(this.code, this.message);
@@ -16,7 +19,7 @@ class AnswerlyApi {
   AnswerlyApi({required this.baseUrl});
 
   final String baseUrl;
-  final _client = http.BrowserClient()..withCredentials = true;
+  final http.Client _client = createHttpClient();
 
   Future<Uint8List> fetchCaptcha() async {
     final uri = Uri.parse('$baseUrl/api/answerly/v1/user/captcha');

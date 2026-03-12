@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
 
 const String kApiBaseUrl = String.fromEnvironment(
@@ -62,10 +63,11 @@ class _LoginPageState extends State<LoginPage> {
         _errorText = '获取验证码失败，请重试';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _loadingCaptcha = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loadingCaptcha = false;
+        });
+      }
     }
   }
 
@@ -100,6 +102,7 @@ class _LoginPageState extends State<LoginPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('登录成功')));
+        Navigator.of(context).pushReplacementNamed(AppRoutes.home);
       }
     } on ApiException catch (error) {
       if (!mounted) return;
@@ -114,10 +117,11 @@ class _LoginPageState extends State<LoginPage> {
       });
       await _reloadCaptcha();
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _submitting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
     }
   }
 
@@ -147,7 +151,7 @@ class _LoginPageState extends State<LoginPage> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
+                          color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 24,
                           offset: const Offset(0, 12),
                         ),
