@@ -255,6 +255,12 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pushNamed(AppRoutes.register);
+                            },
+                            child: const Text('没有账号？去注册'),
+                          ),
                           Text(
                             'API: $kApiBaseUrl',
                             style: Theme.of(context).textTheme.bodySmall

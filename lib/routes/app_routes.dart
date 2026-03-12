@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../pages/home_page.dart';
 import '../pages/login_page.dart';
 import '../pages/placeholder_page.dart';
+import '../pages/register_page.dart';
 
 class AppRoutes {
   static const root = '/';
@@ -26,7 +27,6 @@ class AppRoutes {
   static const categoryManage = '/admin/categories';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    debugPrint(settings.name);
     switch (settings.name) {
       case root:
       case login:
@@ -40,10 +40,9 @@ class AppRoutes {
           settings: settings,
         );
       case register:
-        return _placeholderRoute(
-          settings,
-          title: '注册',
-          description: '对应用户注册、发送邮箱验证码接口。',
+        return MaterialPageRoute<void>(
+          builder: (_) => const RegisterPage(),
+          settings: settings,
         );
       case forgotUsername:
         return _placeholderRoute(

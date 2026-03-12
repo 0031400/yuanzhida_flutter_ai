@@ -35,6 +35,39 @@ class AnswerlyApi {
     return response.bodyBytes;
   }
 
+  Future<void> sendRegisterCode({required String mail}) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/answerly/v1/user/send-code',
+    ).replace(queryParameters: {'mail': mail});
+    final response = await _client.get(uri);
+
+    _ensureSuccessStatus(response, fallbackMessage: 'Send register code failed');
+    _ensureSuccessBody(response.body);
+  }
+
+  Future<void> register({
+    required String username,
+    required String password,
+    required String mail,
+    required String code,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/user');
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    final response = await _client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({
+        'username': username,
+        'password': password,
+        'mail': mail,
+        'code': code,
+      }),
+    );
+
+    _ensureSuccessStatus(response, fallbackMessage: 'Register request failed');
+    _ensureSuccessBody(response.body);
+  }
+
   Future<String> login({
     required String username,
     required String password,
@@ -52,18 +85,9 @@ class AnswerlyApi {
       }),
     );
 
-    if (response.statusCode != 200) {
-      throw ApiException(
-        response.statusCode.toString(),
-        'Login request failed',
-      );
-    }
+    _ensureSuccessStatus(response, fallbackMessage: 'Login request failed');
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final codeValue = body['code']?.toString() ?? 'unknown';
-    if (codeValue != '0') {
-      throw ApiException(codeValue, body['message']?.toString());
-    }
+    final body = _ensureSuccessBody(response.body);
 
     final data = body['data'] as Map<String, dynamic>?;
     final token = data?['token']?.toString();
@@ -72,5 +96,26 @@ class AnswerlyApi {
     }
 
     return token;
+  }
+
+  void _ensureSuccessStatus(
+    http.Response response, {
+    required String fallbackMessage,
+  }) {
+    if (response.statusCode != 200) {
+      throw ApiException(
+        response.statusCode.toString(),
+        fallbackMessage,
+      );
+    }
+  }
+
+  Map<String, dynamic> _ensureSuccessBody(String bodyText) {
+    final body = jsonDecode(bodyText) as Map<String, dynamic>;
+    final codeValue = body['code']?.toString() ?? 'unknown';
+    if (codeValue != '0') {
+      throw ApiException(codeValue, body['message']?.toString());
+    }
+    return body;
   }
 }
