@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../pages/home_page.dart';
 import '../pages/login_page.dart';
 import '../pages/placeholder_page.dart';
+import '../pages/question_browser_page.dart';
 import '../pages/register_page.dart';
 
 class AppRoutes {
@@ -57,10 +58,11 @@ class AppRoutes {
           description: '对应发送重置验证码和重置密码接口。',
         );
       case questionList:
-        return _placeholderRoute(
-          settings,
-          title: '题目广场',
-          description: '对应题目分页查询、关键词补全和热门题目接口。',
+        return MaterialPageRoute<void>(
+          builder: (_) => QuestionBrowserPage(
+            initialQuestionId: _readQuestionId(settings.arguments),
+          ),
+          settings: settings,
         );
       case questionCreate:
         return _placeholderRoute(
@@ -69,10 +71,11 @@ class AppRoutes {
           description: '对应创建、修改、删除、标记解决等题目接口。',
         );
       case questionDetail:
-        return _placeholderRoute(
-          settings,
-          title: '题目详情',
-          description: '对应题目详情、评论分页、点赞、收藏等接口。',
+        return MaterialPageRoute<void>(
+          builder: (_) => QuestionBrowserPage(
+            initialQuestionId: _readQuestionId(settings.arguments),
+          ),
+          settings: settings,
         );
       case myQuestions:
         return _placeholderRoute(
@@ -156,5 +159,22 @@ class AppRoutes {
         description: description,
       ),
     );
+  }
+
+  static int? _readQuestionId(Object? arguments) {
+    if (arguments is int) {
+      return arguments;
+    }
+    if (arguments is String) {
+      return int.tryParse(arguments);
+    }
+    if (arguments is Map<String, dynamic>) {
+      final value = arguments['id'];
+      if (value is int) {
+        return value;
+      }
+      return int.tryParse(value?.toString() ?? '');
+    }
+    return null;
   }
 }
