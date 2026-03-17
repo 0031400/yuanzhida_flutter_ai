@@ -2,14 +2,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../config/app_config.dart';
 import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
 import '../services/auth_session.dart';
-
-const String kApiBaseUrl = String.fromEnvironment(
-  'ANSWERLY_BASE_URL',
-  defaultValue: 'http://127.0.0.1:8000',
-);
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -34,7 +30,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _api = AnswerlyApi(baseUrl: kApiBaseUrl);
+    _api = AnswerlyApi(baseUrl: AppConfig.apiBaseUrl);
     _reloadCaptcha();
   }
 
@@ -273,7 +269,7 @@ class _LoginPageState extends State<LoginPage> {
                             child: const Text('忘记密码？去重置'),
                           ),
                           Text(
-                            'API: $kApiBaseUrl',
+                            'API: ${AppConfig.apiBaseUrl}',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: colorScheme.outline),
                           ),

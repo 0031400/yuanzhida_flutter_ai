@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../config/app_config.dart';
 import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
-import 'login_page.dart' show kApiBaseUrl;
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -31,7 +31,7 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   void initState() {
     super.initState();
-    _api = AnswerlyApi(baseUrl: kApiBaseUrl);
+    _api = AnswerlyApi(baseUrl: AppConfig.apiBaseUrl);
   }
 
   @override
@@ -332,7 +332,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         child: const Text('已有账号，返回登录'),
                       ),
                       Text(
-                        'API: $kApiBaseUrl',
+                        'API: ${AppConfig.apiBaseUrl}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colorScheme.outline,
                         ),

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../config/app_config.dart';
 import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
 import '../services/auth_session.dart';
-import 'login_page.dart' show kApiBaseUrl;
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -25,7 +25,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    _api = AnswerlyApi(baseUrl: kApiBaseUrl);
+    _api = AnswerlyApi(baseUrl: AppConfig.apiBaseUrl);
     _loadProfile();
   }
 
@@ -333,7 +333,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           _InfoRow(
             label: 'API',
-            value: kApiBaseUrl,
+            value: AppConfig.apiBaseUrl,
           ),
           const SizedBox(height: 16),
           _InfoBlock(label: '简介快照', value: profile.introduction),

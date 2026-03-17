@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
+import '../config/app_config.dart';
 import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
 import '../services/auth_session.dart';
-import 'login_page.dart' show kApiBaseUrl;
 
 class QuestionCreatePage extends StatefulWidget {
   const QuestionCreatePage({super.key});
@@ -31,7 +31,7 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
   @override
   void initState() {
     super.initState();
-    _api = AnswerlyApi(baseUrl: kApiBaseUrl);
+    _api = AnswerlyApi(baseUrl: AppConfig.apiBaseUrl);
     _loadCategories();
   }
 
