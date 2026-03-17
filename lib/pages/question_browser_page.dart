@@ -1,7 +1,9 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
+import '../services/auth_session.dart';
 import 'login_page.dart' show kApiBaseUrl;
 
 class QuestionBrowserPage extends StatefulWidget {
@@ -15,11 +17,13 @@ class QuestionBrowserPage extends StatefulWidget {
 
 class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   final _searchController = TextEditingController();
+  final _answerController = TextEditingController();
   late final AnswerlyApi _api;
 
   List<CategorySummary> _categories = const [];
   List<QuestionSummary> _questions = const [];
   List<CommentItem> _comments = const [];
+  final List<_UploadedImage> _uploadedImages = <_UploadedImage>[];
   QuestionDetail? _selectedQuestion;
   int? _selectedQuestionId;
   int? _selectedCategoryId;
@@ -27,10 +31,14 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   bool _loadingQuestions = false;
   bool _loadingDetail = false;
   bool _loadingComments = false;
+  bool _uploadingAnswerImages = false;
+  bool _submittingAnswer = false;
+  bool _answerMode = false;
   String? _categoryError;
   String? _listError;
   String? _detailError;
   String? _commentError;
+  String? _answerError;
   int _questionTotal = 0;
   int _commentTotal = 0;
 
@@ -44,6 +52,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _answerController.dispose();
     super.dispose();
   }
 
@@ -128,6 +137,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         _questions = questions;
         _questionTotal = result.total;
         _selectedQuestionId = selectedId;
+        _answerError = null;
         if (selectedId == null) {
           _selectedQuestion = null;
           _comments = const [];
@@ -185,6 +195,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       _loadingComments = true;
       _detailError = null;
       _commentError = null;
+      _answerError = null;
       _selectedQuestion = null;
       _comments = const [];
       _commentTotal = 0;
@@ -232,6 +243,178 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     }
   }
 
+  Future<void> _pickAndUploadAnswerImages() async {
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    if (username == null || token == null) {
+      setState(() {
+        _answerError = '当前未登录，请先登录后上传图片';
+      });
+      return;
+    }
+
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.image,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _uploadingAnswerImages = true;
+      _answerError = null;
+    });
+
+    try {
+      for (final file in result.files) {
+        final bytes = file.bytes;
+        if (bytes == null || bytes.isEmpty) {
+          throw ApiException('B000102', '图片读取失败');
+        }
+        final filename = file.name.isEmpty ? 'image.png' : file.name;
+        final serverPath = await _api.uploadImage(
+          username: username,
+          token: token,
+          bytes: bytes,
+          filename: filename,
+        );
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _uploadedImages.add(
+            _UploadedImage(displayName: filename, serverPath: serverPath),
+          );
+        });
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      setState(() {
+        _answerError = error.message ?? '图片上传失败';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _answerError = '网络异常，请稍后重试';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploadingAnswerImages = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _submitAnswer() async {
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    final questionId = _selectedQuestionId;
+    final content = _answerController.text.trim();
+    if (username == null || token == null) {
+      setState(() {
+        _answerError = '当前未登录，请先登录后发布解答';
+      });
+      return;
+    }
+    if (questionId == null) {
+      setState(() {
+        _answerError = '请先选择题目';
+      });
+      return;
+    }
+    if (content.isEmpty) {
+      setState(() {
+        _answerError = '请输入解答内容';
+      });
+      return;
+    }
+    if (content.length < 5) {
+      setState(() {
+        _answerError = '解答内容至少 5 个字符';
+      });
+      return;
+    }
+
+    setState(() {
+      _submittingAnswer = true;
+      _answerError = null;
+    });
+
+    try {
+      final loginValid = await _api.checkLogin(username: username, token: token);
+      if (!loginValid) {
+        await AuthSession.clear();
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _answerError = '登录态已失效，请重新登录';
+        });
+        return;
+      }
+
+      await _api.createComment(
+        username: username,
+        token: token,
+        request: CreateCommentRequest(
+          questionId: questionId,
+          content: content,
+          images: _uploadedImages.map((item) => item.serverPath).join(','),
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      _answerController.clear();
+      setState(() {
+        _uploadedImages.clear();
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('解答发布成功')));
+      await _loadSelection(questionId);
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      setState(() {
+        _answerError = error.message ?? '发布解答失败';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _answerError = '网络异常，请稍后重试';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submittingAnswer = false;
+        });
+      }
+    }
+  }
+
+  void _removeUploadedImage(_UploadedImage image) {
+    setState(() {
+      _uploadedImages.remove(image);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -240,6 +423,20 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       appBar: AppBar(
         title: const Text('题目浏览'),
         actions: [
+          IconButton(
+            onPressed: _submittingAnswer || _uploadingAnswerImages
+                ? null
+                : () {
+                    setState(() {
+                      _answerMode = !_answerMode;
+                      _answerError = null;
+                    });
+                  },
+            icon: Icon(
+              _answerMode ? Icons.list_alt_outlined : Icons.edit_note_outlined,
+            ),
+            tooltip: _answerMode ? '返回题目列表' : '进入新建解答',
+          ),
           IconButton(
             onPressed: () async {
               await Navigator.of(context).pushNamed(AppRoutes.questionCreate);
@@ -272,7 +469,12 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Expanded(flex: 3, child: _buildQuestionListPanel()),
+                    Expanded(
+                      flex: 3,
+                      child: _answerMode
+                          ? _buildAnswerComposerPanel()
+                          : _buildQuestionListPanel(),
+                    ),
                     const SizedBox(width: 16),
                     Expanded(flex: 4, child: _buildQuestionDetailPanel()),
                     const SizedBox(width: 16),
@@ -287,7 +489,12 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Expanded(flex: 4, child: _buildQuestionListPanel()),
+                    Expanded(
+                      flex: 4,
+                      child: _answerMode
+                          ? _buildAnswerComposerPanel()
+                          : _buildQuestionListPanel(),
+                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       flex: 6,
@@ -307,7 +514,12 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                SizedBox(height: 420, child: _buildQuestionListPanel()),
+                SizedBox(
+                  height: _answerMode ? 520 : 420,
+                  child: _answerMode
+                      ? _buildAnswerComposerPanel()
+                      : _buildQuestionListPanel(),
+                ),
                 const SizedBox(height: 16),
                 SizedBox(height: 360, child: _buildQuestionDetailPanel()),
                 const SizedBox(height: 16),
@@ -390,9 +602,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
             ),
           ],
           const SizedBox(height: 16),
-          Expanded(
-            child: _buildQuestionListContent(),
-          ),
+          Expanded(child: _buildQuestionListContent()),
         ],
       ),
     );
@@ -468,9 +678,18 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                     runSpacing: 8,
                     children: [
                       _InfoTag(icon: Icons.person_outline, label: item.username),
-                      _InfoTag(icon: Icons.remove_red_eye_outlined, label: '${item.viewCount}'),
-                      _InfoTag(icon: Icons.chat_bubble_outline, label: '${item.commentCount}'),
-                      _InfoTag(icon: Icons.thumb_up_alt_outlined, label: '${item.likeCount}'),
+                      _InfoTag(
+                        icon: Icons.remove_red_eye_outlined,
+                        label: '${item.viewCount}',
+                      ),
+                      _InfoTag(
+                        icon: Icons.chat_bubble_outline,
+                        label: '${item.commentCount}',
+                      ),
+                      _InfoTag(
+                        icon: Icons.thumb_up_alt_outlined,
+                        label: '${item.likeCount}',
+                      ),
                     ],
                   ),
                 ],
@@ -479,6 +698,164 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildAnswerComposerPanel() {
+    return _PanelScaffold(
+      title: '新建解答',
+      subtitle: _selectedQuestionId == null
+          ? '请先在题目列表中选择题目'
+          : '当前题目 ID $_selectedQuestionId',
+      child: _buildAnswerComposerContent(),
+    );
+  }
+
+  Widget _buildAnswerComposerContent() {
+    final theme = Theme.of(context);
+    final username = AuthSession.username;
+
+    return ListView(
+      children: [
+        if (_selectedQuestion == null || username == null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              _selectedQuestion == null
+                  ? '请先切回题目列表并选择一个题目，再来编写解答。'
+                  : '当前题目：${_selectedQuestion!.title}\n当前未登录，登录后才能发布解答。',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        TextField(
+          controller: _answerController,
+          enabled: !_submittingAnswer,
+          minLines: 10,
+          maxLines: 14,
+          decoration: const InputDecoration(
+            labelText: '解答内容',
+            hintText: '写下你的解法、推导过程、结论或补充说明',
+            alignLabelWithHint: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '解答图片',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: _submittingAnswer || _uploadingAnswerImages
+                  ? null
+                  : _pickAndUploadAnswerImages,
+              icon: _uploadingAnswerImages
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.upload_file_outlined),
+              label: Text(_uploadingAnswerImages ? '上传中' : '选择并上传'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          _uploadedImages.isEmpty
+              ? '可选。上传的图片会附加到当前解答。'
+              : '已上传 ${_uploadedImages.length} 张图片。',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_uploadedImages.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Text('暂未上传图片'),
+          )
+        else
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _uploadedImages
+                .map(
+                  (image) => Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 150,
+                      maxWidth: 220,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainer,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: theme.colorScheme.outlineVariant),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.image_outlined, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            image.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: _submittingAnswer || _uploadingAnswerImages
+                              ? null
+                              : () => _removeUploadedImage(image),
+                          icon: const Icon(Icons.close, size: 18),
+                          tooltip: '移除',
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        if (_answerError != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _answerError!,
+            style: TextStyle(color: theme.colorScheme.error),
+          ),
+        ],
+        const SizedBox(height: 20),
+        FilledButton(
+          onPressed: _submittingAnswer || _uploadingAnswerImages
+              ? null
+              : _submitAnswer,
+          child: _submittingAnswer
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('发布解答'),
+        ),
+      ],
     );
   }
 
@@ -866,4 +1243,11 @@ class _EmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+class _UploadedImage {
+  const _UploadedImage({required this.displayName, required this.serverPath});
+
+  final String displayName;
+  final String serverPath;
 }

@@ -178,6 +178,22 @@ class CreateQuestionRequest {
   final String content;
 }
 
+class CreateCommentRequest {
+  const CreateCommentRequest({
+    required this.questionId,
+    required this.content,
+    this.parentCommentId = 0,
+    this.topCommentId = 0,
+    this.images = '',
+  });
+
+  final int questionId;
+  final String content;
+  final int parentCommentId;
+  final int topCommentId;
+  final String images;
+}
+
 class UserProfile {
   const UserProfile({
     required this.id,
@@ -633,6 +649,32 @@ class AnswerlyApi {
       current: _readInt(data['current']),
       size: _readInt(data['size']),
     );
+  }
+
+  Future<void> createComment({
+    required String username,
+    required String token,
+    required CreateCommentRequest request,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/comment');
+    final headers = <String, String>{
+      ..._authHeaders(username: username, token: token),
+      'Content-Type': 'application/json',
+    };
+    final response = await _client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({
+        'questionId': request.questionId,
+        'content': request.content,
+        'parentCommentId': request.parentCommentId,
+        'topCommentId': request.topCommentId,
+        'images': request.images,
+      }),
+    );
+
+    _ensureSuccessStatus(response, fallbackMessage: 'Create comment failed');
+    _ensureSuccessBody(response.body);
   }
 
   Future<String> login({
