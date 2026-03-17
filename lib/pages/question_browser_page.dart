@@ -5,6 +5,7 @@ import '../config/app_config.dart';
 import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
 import '../services/auth_session.dart';
+import '../widgets/html_image_view.dart';
 
 class QuestionBrowserPage extends StatefulWidget {
   const QuestionBrowserPage({super.key, this.initialQuestionId});
@@ -938,7 +939,22 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           for (final image in images)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: SelectableText(image),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    HtmlImageView(
+                      imageUrl: AppConfig.resolveMediaUrl(image),
+                      fit: BoxFit.cover,
+                      height: 220,
+                      errorText: '图片加载失败',
+                    ),
+                    const SizedBox(height: 6),
+                    SelectableText(AppConfig.resolveMediaUrl(image)),
+                  ],
+                ),
+              ),
             ),
         ],
         const SizedBox(height: 20),
@@ -1054,6 +1070,16 @@ class _CommentCard extends StatelessWidget {
           children: [
             Row(
               children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundImage: comment.avatar.isEmpty
+                      ? null
+                      : NetworkImage(AppConfig.resolveMediaUrl(comment.avatar)),
+                  child: comment.avatar.isEmpty
+                      ? Text(comment.username.characters.first)
+                      : null,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     comment.username,
@@ -1078,6 +1104,28 @@ class _CommentCard extends StatelessWidget {
               comment.content.isEmpty ? '暂无内容' : comment.content,
               style: theme.textTheme.bodyMedium,
             ),
+            if (comment.images.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: comment.images
+                    .split(',')
+                    .map((item) => item.trim())
+                    .where((item) => item.isNotEmpty)
+                    .map(
+                      (image) => HtmlImageView(
+                        imageUrl: AppConfig.resolveMediaUrl(image),
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
+                        borderRadius: BorderRadius.circular(12),
+                        errorText: '加载失败',
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 10,
