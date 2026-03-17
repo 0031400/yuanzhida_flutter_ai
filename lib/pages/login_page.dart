@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
+import '../services/auth_session.dart';
 
 const String kApiBaseUrl = String.fromEnvironment(
   'ANSWERLY_BASE_URL',
@@ -98,6 +99,7 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         _token = token;
       });
+      AuthSession.save(username: username, token: token);
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,

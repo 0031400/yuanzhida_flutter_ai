@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../pages/home_page.dart';
 import '../pages/login_page.dart';
 import '../pages/placeholder_page.dart';
+import '../pages/profile_page.dart';
 import '../pages/question_browser_page.dart';
 import '../pages/register_page.dart';
 
@@ -102,10 +103,9 @@ class AppRoutes {
           description: '对应我的评论分页、评论编辑删除接口。',
         );
       case profile:
-        return _placeholderRoute(
-          settings,
-          title: '个人主页',
-          description: '对应用户信息、非脱敏信息、登录态检查接口。',
+        return MaterialPageRoute<void>(
+          builder: (_) => const ProfilePage(),
+          settings: settings,
         );
       case profileEdit:
         return _placeholderRoute(

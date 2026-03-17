@@ -163,6 +163,76 @@ class CommentPageData {
   final int size;
 }
 
+class UserProfile {
+  const UserProfile({
+    required this.id,
+    required this.studentId,
+    required this.username,
+    required this.introduction,
+    required this.userType,
+    required this.likeCount,
+    required this.collectCount,
+    required this.usefulCount,
+    required this.phone,
+  });
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    return UserProfile(
+      id: _readInt(json['id']),
+      studentId: json['studentId']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
+      introduction: json['introduction']?.toString() ?? '',
+      userType: json['userType']?.toString() ?? '',
+      likeCount: _readInt(json['likeCount']),
+      collectCount: _readInt(json['collectCount']),
+      usefulCount: _readInt(json['usefulCount']),
+      phone: json['phone']?.toString() ?? '',
+    );
+  }
+
+  final int id;
+  final String studentId;
+  final String username;
+  final String introduction;
+  final String userType;
+  final int likeCount;
+  final int collectCount;
+  final int usefulCount;
+  final String phone;
+}
+
+class ActualUserProfile {
+  const ActualUserProfile({
+    required this.id,
+    required this.studentId,
+    required this.username,
+    required this.introduction,
+    required this.likeCount,
+    required this.solvedCount,
+    required this.phone,
+  });
+
+  factory ActualUserProfile.fromJson(Map<String, dynamic> json) {
+    return ActualUserProfile(
+      id: _readInt(json['id']),
+      studentId: json['studentId']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
+      introduction: json['introduction']?.toString() ?? '',
+      likeCount: _readInt(json['likeCount']),
+      solvedCount: _readInt(json['solvedCount']),
+      phone: json['phone']?.toString() ?? '',
+    );
+  }
+
+  final int id;
+  final String studentId;
+  final String username;
+  final String introduction;
+  final int likeCount;
+  final int solvedCount;
+  final String phone;
+}
+
 class CommentItem {
   const CommentItem({
     required this.id,
@@ -458,6 +528,95 @@ class AnswerlyApi {
     }
 
     return token;
+  }
+
+  Future<bool> checkLogin({
+    required String username,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/answerly/v1/user/check-login',
+    ).replace(queryParameters: {'username': username, 'token': token});
+    final response = await _client.get(
+      uri,
+      headers: _authHeaders(username: username, token: token),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Check login request failed',
+    );
+    final body = _ensureSuccessBody(response.body);
+    return body['data'] == true;
+  }
+
+  Future<UserProfile> fetchUserProfile({
+    required String authUsername,
+    required String token,
+    required String profileUsername,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/answerly/v1/user/$profileUsername',
+    );
+    final response = await _client.get(
+      uri,
+      headers: _authHeaders(username: authUsername, token: token),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'User profile request failed',
+    );
+    final body = _ensureSuccessBody(response.body);
+    final data = body['data'] as Map<String, dynamic>? ?? const {};
+    return UserProfile.fromJson(data);
+  }
+
+  Future<ActualUserProfile> fetchActualUserProfile({
+    required String authUsername,
+    required String token,
+    required String profileUsername,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/answerly/v1/actual/user/$profileUsername',
+    );
+    final response = await _client.get(
+      uri,
+      headers: _authHeaders(username: authUsername, token: token),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Actual user profile request failed',
+    );
+    final body = _ensureSuccessBody(response.body);
+    final data = body['data'] as Map<String, dynamic>? ?? const {};
+    return ActualUserProfile.fromJson(data);
+  }
+
+  Future<int> fetchActivityScore({
+    required String username,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/user/activity/score');
+    final response = await _client.get(
+      uri,
+      headers: _authHeaders(username: username, token: token),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Activity score request failed',
+    );
+    final body = _ensureSuccessBody(response.body);
+    return _readInt(body['data']);
+  }
+
+  Map<String, String> _authHeaders({
+    required String username,
+    required String token,
+  }) {
+    return <String, String>{'username': username, 'token': token};
   }
 
   void _ensureSuccessStatus(
