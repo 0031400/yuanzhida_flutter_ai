@@ -958,8 +958,8 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
             ),
         ],
         const SizedBox(height: 20),
-        _MetaBlock(label: '创建时间', value: detail.createTime),
-        _MetaBlock(label: '更新时间', value: detail.updateTime),
+        _MetaBlock(label: '创建时间', value: _formatDateTime(detail.createTime)),
+        _MetaBlock(label: '更新时间', value: _formatDateTime(detail.updateTime)),
         _MetaBlock(label: '点赞状态', value: detail.likeStatus),
         _MetaBlock(label: '收藏状态', value: detail.collectStatus),
       ],
@@ -1133,7 +1133,10 @@ class _CommentCard extends StatelessWidget {
               children: [
                 _InfoTag(icon: Icons.thumb_up_alt_outlined, label: '${comment.likeCount}'),
                 _InfoTag(icon: Icons.verified_outlined, label: '${comment.useful} 有用'),
-                _InfoTag(icon: Icons.schedule, label: comment.createTime),
+                _InfoTag(
+                  icon: Icons.schedule,
+                  label: _formatDateTime(comment.createTime),
+                ),
               ],
             ),
             if (comment.childComments.isNotEmpty) ...[
@@ -1298,4 +1301,24 @@ class _UploadedImage {
 
   final String displayName;
   final String serverPath;
+}
+
+String _formatDateTime(String raw) {
+  final text = raw.trim();
+  if (text.isEmpty) {
+    return '-';
+  }
+
+  final parsed = DateTime.tryParse(text);
+  if (parsed == null) {
+    return text;
+  }
+
+  final local = parsed.toLocal();
+  final year = local.year.toString().padLeft(4, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  final day = local.day.toString().padLeft(2, '0');
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$year-$month-$day $hour:$minute';
 }
