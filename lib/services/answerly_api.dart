@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'auth_session.dart';
 import 'http_client_stub.dart'
     if (dart.library.js_interop) 'http_client_web.dart';
 
@@ -475,7 +476,7 @@ class AnswerlyApi {
     final uri = Uri.parse(
       '$baseUrl/api/answerly/v1/question/page',
     ).replace(queryParameters: queryParameters);
-    final response = await _client.get(uri);
+    final response = await _client.get(uri, headers: _optionalAuthHeaders());
 
     _ensureSuccessStatus(
       response,
@@ -537,7 +538,7 @@ class AnswerlyApi {
 
   Future<QuestionDetail> fetchQuestionDetail(int id) async {
     final uri = Uri.parse('$baseUrl/api/answerly/v1/question/$id');
-    final response = await _client.get(uri);
+    final response = await _client.get(uri, headers: _optionalAuthHeaders());
 
     _ensureSuccessStatus(
       response,
@@ -607,7 +608,7 @@ class AnswerlyApi {
         'id': '$questionId',
       },
     );
-    final response = await _client.get(uri);
+    final response = await _client.get(uri, headers: _optionalAuthHeaders());
 
     _ensureSuccessStatus(
       response,
@@ -787,6 +788,15 @@ class AnswerlyApi {
     required String token,
   }) {
     return <String, String>{'username': username, 'token': token};
+  }
+
+  Map<String, String> _optionalAuthHeaders() {
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    if (username == null || username.isEmpty || token == null || token.isEmpty) {
+      return const <String, String>{};
+    }
+    return _authHeaders(username: username, token: token);
   }
 
   void _ensureSuccessStatus(
