@@ -99,13 +99,12 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         _token = token;
       });
-      AuthSession.save(username: username, token: token);
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('登录成功')));
-        Navigator.of(context).pushReplacementNamed(AppRoutes.home);
-      }
+      await AuthSession.save(username: username, token: token);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('登录成功')));
+      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() {

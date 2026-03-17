@@ -70,7 +70,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       final loginValid = results[0] as bool;
       if (!loginValid) {
-        AuthSession.clear();
+        await AuthSession.clear();
       }
 
       setState(() {
@@ -86,7 +86,7 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       final shouldClearSession = error.code == 'A000204';
       if (shouldClearSession) {
-        AuthSession.clear();
+        await AuthSession.clear();
       }
       setState(() {
         _errorText = error.message ?? '获取个人信息失败';
