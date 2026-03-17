@@ -5,6 +5,7 @@ import '../pages/login_page.dart';
 import '../pages/placeholder_page.dart';
 import '../pages/profile_page.dart';
 import '../pages/profile_edit_page.dart';
+import '../pages/question_create_page.dart';
 import '../pages/question_browser_page.dart';
 import '../pages/register_page.dart';
 
@@ -67,10 +68,9 @@ class AppRoutes {
           settings: settings,
         );
       case questionCreate:
-        return _placeholderRoute(
-          settings,
-          title: '发布题目',
-          description: '对应创建、修改、删除、标记解决等题目接口。',
+        return MaterialPageRoute<void>(
+          builder: (_) => const QuestionCreatePage(),
+          settings: settings,
         );
       case questionDetail:
         return MaterialPageRoute<void>(

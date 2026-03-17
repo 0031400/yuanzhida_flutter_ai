@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
 import 'login_page.dart' show kApiBaseUrl;
 
@@ -239,6 +240,17 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       appBar: AppBar(
         title: const Text('题目浏览'),
         actions: [
+          IconButton(
+            onPressed: () async {
+              await Navigator.of(context).pushNamed(AppRoutes.questionCreate);
+              if (!mounted) {
+                return;
+              }
+              _loadQuestions();
+            },
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: '发布题目',
+          ),
           IconButton(
             onPressed: _loadingCategories || _loadingQuestions
                 ? null

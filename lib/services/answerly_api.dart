@@ -163,6 +163,20 @@ class CommentPageData {
   final int size;
 }
 
+class CreateQuestionRequest {
+  const CreateQuestionRequest({
+    required this.images,
+    required this.categoryId,
+    required this.title,
+    required this.content,
+  });
+
+  final String images;
+  final int categoryId;
+  final String title;
+  final String content;
+}
+
 class UserProfile {
   const UserProfile({
     required this.id,
@@ -477,6 +491,31 @@ class AnswerlyApi {
     final body = _ensureSuccessBody(response.body);
     final data = body['data'] as Map<String, dynamic>? ?? const {};
     return QuestionDetail.fromJson(data);
+  }
+
+  Future<void> createQuestion({
+    required String username,
+    required String token,
+    required CreateQuestionRequest request,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/question');
+    final headers = <String, String>{
+      ..._authHeaders(username: username, token: token),
+      'Content-Type': 'application/json',
+    };
+    final response = await _client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({
+        'images': request.images,
+        'categoryId': request.categoryId,
+        'title': request.title,
+        'content': request.content,
+      }),
+    );
+
+    _ensureSuccessStatus(response, fallbackMessage: 'Create question failed');
+    _ensureSuccessBody(response.body);
   }
 
   Future<CommentPageData> fetchCommentPage({
