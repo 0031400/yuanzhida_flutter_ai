@@ -518,6 +518,28 @@ class AnswerlyApi {
     _ensureSuccessBody(response.body);
   }
 
+  Future<String> uploadImage({
+    required String username,
+    required String token,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final uri = Uri.parse('$baseUrl/cos/upload');
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll(_authHeaders(username: username, token: token))
+      ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final streamedResponse = await _client.send(request);
+    final response = await http.Response.fromStream(streamedResponse);
+
+    _ensureSuccessStatus(response, fallbackMessage: 'Upload image failed');
+    final body = _ensureSuccessBody(response.body);
+    final data = body['data']?.toString();
+    if (data == null || data.isEmpty) {
+      throw ApiException('B000102', '图片上传错误');
+    }
+    return data;
+  }
+
   Future<CommentPageData> fetchCommentPage({
     required int questionId,
     int current = 1,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
@@ -16,13 +17,14 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
-  final _imagesController = TextEditingController();
 
   late final AnswerlyApi _api;
 
   List<CategorySummary> _categories = const [];
+  final List<_UploadedImage> _uploadedImages = <_UploadedImage>[];
   int? _selectedCategoryId;
   bool _loadingCategories = false;
+  bool _uploadingImages = false;
   bool _submitting = false;
   String? _errorText;
 
@@ -37,7 +39,6 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
-    _imagesController.dispose();
     super.dispose();
   }
 
@@ -124,7 +125,7 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
         username: username,
         token: token,
         request: CreateQuestionRequest(
-          images: _normalizeImages(_imagesController.text),
+          images: _uploadedImages.map((item) => item.serverPath).join(','),
           categoryId: _selectedCategoryId!,
           title: _titleController.text.trim(),
           content: _contentController.text.trim(),
@@ -167,12 +168,82 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
     }
   }
 
-  String _normalizeImages(String raw) {
-    return raw
-        .split(RegExp(r'[\n,]'))
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(',');
+  Future<void> _pickAndUploadImages() async {
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    if (username == null || token == null) {
+      setState(() {
+        _errorText = '当前未登录，请先登录后上传图片';
+      });
+      return;
+    }
+
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.image,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _uploadingImages = true;
+      _errorText = null;
+    });
+
+    try {
+      for (final file in result.files) {
+        final bytes = file.bytes;
+        if (bytes == null || bytes.isEmpty) {
+          throw ApiException('B000102', '图片读取失败');
+        }
+        final filename = file.name.isEmpty ? 'image.png' : file.name;
+        final serverPath = await _api.uploadImage(
+          username: username,
+          token: token,
+          bytes: bytes,
+          filename: filename,
+        );
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _uploadedImages.add(
+            _UploadedImage(displayName: filename, serverPath: serverPath),
+          );
+        });
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      setState(() {
+        _errorText = error.message ?? '图片上传失败';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorText = '网络异常，请稍后重试';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploadingImages = false;
+        });
+      }
+    }
+  }
+
+  void _removeUploadedImage(_UploadedImage image) {
+    setState(() {
+      _uploadedImages.remove(image);
+    });
   }
 
   @override
@@ -186,7 +257,7 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
         title: const Text('发布题目'),
         actions: [
           IconButton(
-            onPressed: _loadingCategories || _submitting
+            onPressed: _loadingCategories || _submitting || _uploadingImages
                 ? null
                 : () => _loadCategories(forceRefresh: true),
             icon: const Icon(Icons.refresh),
@@ -268,7 +339,8 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
                                 ),
                               )
                               .toList(),
-                          onChanged: _loadingCategories || _submitting
+                          onChanged:
+                              _loadingCategories || _submitting || _uploadingImages
                               ? null
                               : (value) {
                                   setState(() {
@@ -325,30 +397,111 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _imagesController,
-                          minLines: 2,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            labelText: '图片地址',
-                            hintText: '支持多个地址，使用英文逗号或换行分隔',
-                            alignLabelWithHint: true,
-                            border: OutlineInputBorder(),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '题目图片',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            FilledButton.tonalIcon(
+                              onPressed: _submitting || _uploadingImages
+                                  ? null
+                                  : _pickAndUploadImages,
+                              icon: _uploadingImages
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.upload_file_outlined),
+                              label: Text(_uploadingImages ? '上传中' : '选择并上传'),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          '接口字段会按逗号拼接为 `images`，留空则不上传图片。',
+                          _uploadedImages.isEmpty
+                              ? '可选。选择本地图片后会先上传到服务器，发布时自动拼接内部 `images` 字段。'
+                              : '已上传 ${_uploadedImages.length} 张图片。页面只展示文件名，不展示内部图片地址。',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.outline,
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        if (_uploadedImages.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceContainer,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Text('暂未上传图片'),
+                          )
+                        else
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: _uploadedImages
+                                .map(
+                                  (image) => Container(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 180,
+                                      maxWidth: 260,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surfaceContainer,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: colorScheme.outlineVariant,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.image_outlined,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            image.displayName,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          onPressed: _submitting || _uploadingImages
+                                              ? null
+                                              : () => _removeUploadedImage(image),
+                                          icon: const Icon(Icons.close, size: 18),
+                                          tooltip: '移除',
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
                         const SizedBox(height: 24),
                         Row(
                           children: [
                             Expanded(
                               child: FilledButton(
-                                onPressed: _submitting || _loadingCategories
+                                onPressed: _submitting ||
+                                        _loadingCategories ||
+                                        _uploadingImages
                                     ? null
                                     : _submit,
                                 child: _submitting
@@ -365,7 +518,7 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: _submitting
+                                onPressed: _submitting || _uploadingImages
                                     ? null
                                     : () => Navigator.of(context).maybePop(),
                                 child: const Text('取消'),
@@ -384,4 +537,11 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
       ),
     );
   }
+}
+
+class _UploadedImage {
+  const _UploadedImage({required this.displayName, required this.serverPath});
+
+  final String displayName;
+  final String serverPath;
 }
