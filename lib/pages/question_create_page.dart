@@ -55,7 +55,9 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
       }
       setState(() {
         _categories = categories;
-        _selectedCategoryId ??= categories.isNotEmpty ? categories.first.id : null;
+        _selectedCategoryId ??= categories.isNotEmpty
+            ? categories.first.id
+            : null;
       });
     } on ApiException catch (error) {
       if (!mounted) {
@@ -109,7 +111,10 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
     });
 
     try {
-      final loginValid = await _api.checkLogin(username: username, token: token);
+      final loginValid = await _api.checkLogin(
+        username: username,
+        token: token,
+      );
       if (!loginValid) {
         await AuthSession.clear();
         if (!mounted) {
@@ -140,7 +145,7 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
       ).showSnackBar(const SnackBar(content: Text('题目发布成功')));
       Navigator.of(context).pushNamedAndRemoveUntil(
         AppRoutes.questionList,
-        (route) => route.settings.name == AppRoutes.home,
+        (route) => route.settings.name == AppRoutes.root,
       );
     } on ApiException catch (error) {
       if (!mounted) {
@@ -340,7 +345,9 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
                               )
                               .toList(),
                           onChanged:
-                              _loadingCategories || _submitting || _uploadingImages
+                              _loadingCategories ||
+                                  _submitting ||
+                                  _uploadingImages
                               ? null
                               : (value) {
                                   setState(() {
@@ -481,10 +488,15 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
                                           ),
                                         ),
                                         IconButton(
-                                          onPressed: _submitting || _uploadingImages
+                                          onPressed:
+                                              _submitting || _uploadingImages
                                               ? null
-                                              : () => _removeUploadedImage(image),
-                                          icon: const Icon(Icons.close, size: 18),
+                                              : () =>
+                                                    _removeUploadedImage(image),
+                                          icon: const Icon(
+                                            Icons.close,
+                                            size: 18,
+                                          ),
                                           tooltip: '移除',
                                           visualDensity: VisualDensity.compact,
                                         ),
@@ -499,7 +511,8 @@ class _QuestionCreatePageState extends State<QuestionCreatePage> {
                           children: [
                             Expanded(
                               child: FilledButton(
-                                onPressed: _submitting ||
+                                onPressed:
+                                    _submitting ||
                                         _loadingCategories ||
                                         _uploadingImages
                                     ? null

@@ -13,7 +13,6 @@ import '../pages/reset_password_page.dart';
 class AppRoutes {
   static const root = '/';
   static const login = '/login';
-  static const home = '/home';
   static const register = '/register';
   static const forgotUsername = '/forgot-username';
   static const resetPassword = '/reset-password';
@@ -33,13 +32,12 @@ class AppRoutes {
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
-      case root:
       case login:
         return MaterialPageRoute<void>(
           builder: (_) => const LoginPage(),
           settings: settings,
         );
-      case home:
+      case root:
         return MaterialPageRoute<void>(
           builder: (_) => const HomePage(),
           settings: settings,

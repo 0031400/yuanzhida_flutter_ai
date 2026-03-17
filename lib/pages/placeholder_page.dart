@@ -50,7 +50,7 @@ class PlaceholderPage extends StatelessWidget {
                         FilledButton(
                           onPressed: () {
                             Navigator.of(context).pushNamedAndRemoveUntil(
-                              AppRoutes.home,
+                              AppRoutes.root,
                               (route) {
                                 return false;
                               },

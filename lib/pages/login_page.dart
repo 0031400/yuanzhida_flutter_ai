@@ -104,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('登录成功')));
-      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      Navigator.of(context).pushReplacementNamed(AppRoutes.root);
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -258,7 +258,9 @@ class _LoginPageState extends State<LoginPage> {
                           const SizedBox(height: 12),
                           TextButton(
                             onPressed: () {
-                              Navigator.of(context).pushNamed(AppRoutes.register);
+                              Navigator.of(
+                                context,
+                              ).pushNamed(AppRoutes.register);
                             },
                             child: const Text('没有账号？去注册'),
                           ),
