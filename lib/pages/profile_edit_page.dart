@@ -25,6 +25,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   bool _loading = false;
   bool _saving = false;
   bool _loggingOut = false;
+  bool _editUsername = false;
+  bool _editPassword = false;
+  bool _editPhone = false;
+  bool _editAvatar = false;
+  bool _editIntroduction = false;
   String? _errorText;
   String? _currentUsername;
 
@@ -129,12 +134,22 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       return;
     }
 
-    final newUsername = _usernameController.text.trim();
-    final phone = _phoneController.text.trim();
-    final avatar = _avatarController.text.trim();
-    final introduction = _introductionController.text.trim();
-    final password = _passwordController.text;
-
+    final request = UpdateUserProfileRequest(
+      oldUsername: authUsername,
+      newUsername: _editUsername ? _usernameController.text.trim() : null,
+      password: _editPassword ? _passwordController.text : null,
+      avatar: _editAvatar ? _avatarController.text.trim() : null,
+      phone: _editPhone ? _phoneController.text.trim() : null,
+      introduction: _editIntroduction
+          ? _introductionController.text.trim()
+          : null,
+    );
+    if (!request.hasChanges) {
+      setState(() {
+        _errorText = '请至少打开一个编辑开关';
+      });
+      return;
+    }
     setState(() {
       _saving = true;
       _errorText = null;
@@ -144,22 +159,31 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       await _api.updateUserProfile(
         authUsername: authUsername,
         token: token,
-        request: UpdateUserProfileRequest(
-          oldUsername: authUsername,
-          newUsername: newUsername,
-          password: password.isEmpty ? null : password,
-          avatar: avatar.isEmpty ? null : avatar,
-          phone: phone,
-          introduction: introduction,
-        ),
+        request: request,
       );
 
-      await AuthSession.save(username: newUsername, token: token);
+      final nextUsername = request.newUsername ?? authUsername;
+      await AuthSession.save(username: nextUsername, token: token);
       if (!mounted) {
         return;
       }
       setState(() {
-        _currentUsername = newUsername;
+        _currentUsername = nextUsername;
+        if (_editUsername) {
+          _editUsername = false;
+        }
+        if (_editPassword) {
+          _editPassword = false;
+        }
+        if (_editPhone) {
+          _editPhone = false;
+        }
+        if (_editAvatar) {
+          _editAvatar = false;
+        }
+        if (_editIntroduction) {
+          _editIntroduction = false;
+        }
         _passwordController.clear();
       });
       ScaffoldMessenger.of(
@@ -200,10 +224,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.login,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
       return;
     }
 
@@ -289,7 +312,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '可修改用户名、手机号、头像地址、简介与密码。留空密码表示不修改。',
+                        '先打开某项的编辑开关，再输入新内容；只有开启的字段才会进入更新请求。',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.white.withValues(alpha: 0.88),
                         ),
@@ -325,82 +348,155 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              TextFormField(
-                                controller: _usernameController,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: '用户名',
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (value) {
-                                  final text = value?.trim() ?? '';
-                                  if (text.isEmpty) {
-                                    return '请输入用户名';
-                                  }
-                                  if (text.length < 2) {
-                                    return '用户名至少 2 个字符';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _phoneController,
-                                keyboardType: TextInputType.phone,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: '手机号',
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (value) {
-                                  final text = value?.trim() ?? '';
-                                  if (text.isEmpty) {
-                                    return '请输入手机号';
-                                  }
-                                  if (!RegExp(r'^\d{11}$').hasMatch(text)) {
-                                    return '请输入 11 位手机号';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _avatarController,
-                                keyboardType: TextInputType.url,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: '头像地址',
-                                  hintText: 'https://example.com/avatar.png',
-                                  border: OutlineInputBorder(),
+                              _EditableFieldCard(
+                                title: '用户名',
+                                enabled: _editUsername,
+                                onChanged: busy
+                                    ? null
+                                    : (value) {
+                                        setState(() {
+                                          _editUsername = value;
+                                        });
+                                      },
+                                child: TextFormField(
+                                  controller: _usernameController,
+                                  enabled: _editUsername && !busy,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: '用户名',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  validator: (value) {
+                                    if (!_editUsername) {
+                                      return null;
+                                    }
+                                    final text = value?.trim() ?? '';
+                                    if (text.isEmpty) {
+                                      return '请输入用户名';
+                                    }
+                                    if (text.length < 2) {
+                                      return '用户名至少 2 个字符';
+                                    }
+                                    return null;
+                                  },
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: true,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: '新密码',
-                                  hintText: '留空则不修改',
-                                  border: OutlineInputBorder(),
+                              _EditableFieldCard(
+                                title: '手机号',
+                                enabled: _editPhone,
+                                onChanged: busy
+                                    ? null
+                                    : (value) {
+                                        setState(() {
+                                          _editPhone = value;
+                                        });
+                                      },
+                                child: TextFormField(
+                                  controller: _phoneController,
+                                  enabled: _editPhone && !busy,
+                                  keyboardType: TextInputType.phone,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: '手机号',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  validator: (value) {
+                                    if (!_editPhone) {
+                                      return null;
+                                    }
+                                    final text = value?.trim() ?? '';
+                                    if (text.isNotEmpty &&
+                                        !RegExp(r'^\d{11}$').hasMatch(text)) {
+                                      return '请输入 11 位手机号';
+                                    }
+                                    return null;
+                                  },
                                 ),
-                                validator: (value) {
-                                  final text = value ?? '';
-                                  if (text.isNotEmpty && text.length < 6) {
-                                    return '密码至少 6 位';
-                                  }
-                                  return null;
-                                },
                               ),
                               const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _introductionController,
-                                minLines: 4,
-                                maxLines: 6,
-                                decoration: const InputDecoration(
-                                  labelText: '个人简介',
-                                  alignLabelWithHint: true,
-                                  border: OutlineInputBorder(),
+                              _EditableFieldCard(
+                                title: '头像地址',
+                                enabled: _editAvatar,
+                                onChanged: busy
+                                    ? null
+                                    : (value) {
+                                        setState(() {
+                                          _editAvatar = value;
+                                        });
+                                      },
+                                child: TextFormField(
+                                  controller: _avatarController,
+                                  enabled: _editAvatar && !busy,
+                                  keyboardType: TextInputType.url,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: '头像地址',
+                                    hintText: 'https://example.com/avatar.png',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _EditableFieldCard(
+                                title: '新密码',
+                                enabled: _editPassword,
+                                onChanged: busy
+                                    ? null
+                                    : (value) {
+                                        setState(() {
+                                          _editPassword = value;
+                                          if (!value) {
+                                            _passwordController.clear();
+                                          }
+                                        });
+                                      },
+                                child: TextFormField(
+                                  controller: _passwordController,
+                                  enabled: _editPassword && !busy,
+                                  obscureText: true,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: '新密码',
+                                    hintText: '留空则不修改',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  validator: (value) {
+                                    if (!_editPassword) {
+                                      return null;
+                                    }
+                                    final text = value ?? '';
+                                    if (text.isEmpty) {
+                                      return '请输入新密码';
+                                    }
+                                    if (text.length < 6) {
+                                      return '密码至少 6 位';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _EditableFieldCard(
+                                title: '个人简介',
+                                enabled: _editIntroduction,
+                                onChanged: busy
+                                    ? null
+                                    : (value) {
+                                        setState(() {
+                                          _editIntroduction = value;
+                                        });
+                                      },
+                                child: TextFormField(
+                                  controller: _introductionController,
+                                  enabled: _editIntroduction && !busy,
+                                  minLines: 4,
+                                  maxLines: 6,
+                                  decoration: const InputDecoration(
+                                    labelText: '个人简介',
+                                    alignLabelWithHint: true,
+                                    border: OutlineInputBorder(),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 20),
@@ -445,6 +541,57 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _EditableFieldCard extends StatelessWidget {
+  const _EditableFieldCard({
+    required this.title,
+    required this.enabled,
+    required this.onChanged,
+    required this.child,
+  });
+
+  final String title;
+  final bool enabled;
+  final ValueChanged<bool>? onChanged;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: enabled
+            ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+            : colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: enabled ? colorScheme.primary : colorScheme.outlineVariant,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Switch(value: enabled, onChanged: onChanged),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
       ),
     );
   }

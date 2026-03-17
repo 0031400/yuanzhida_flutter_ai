@@ -250,19 +250,37 @@ class ActualUserProfile {
 class UpdateUserProfileRequest {
   const UpdateUserProfileRequest({
     required this.oldUsername,
-    required this.newUsername,
+    this.newUsername,
     this.password,
     this.avatar,
-    required this.phone,
-    required this.introduction,
+    this.phone,
+    this.introduction,
   });
 
   final String oldUsername;
-  final String newUsername;
+  final String? newUsername;
   final String? password;
   final String? avatar;
-  final String phone;
-  final String introduction;
+  final String? phone;
+  final String? introduction;
+
+  bool get hasChanges =>
+      newUsername != null ||
+      password != null ||
+      avatar != null ||
+      phone != null ||
+      introduction != null;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'oldUsername': oldUsername,
+      if (newUsername != null) 'newUsername': newUsername,
+      if (password != null) 'password': password,
+      if (avatar != null) 'avatar': avatar,
+      if (phone != null) 'phone': phone,
+      if (introduction != null) 'introduction': introduction,
+    };
+  }
 }
 
 class CommentItem {
@@ -717,14 +735,7 @@ class AnswerlyApi {
     final response = await _client.put(
       uri,
       headers: headers,
-      body: jsonEncode({
-        'oldUsername': request.oldUsername,
-        'newUsername': request.newUsername,
-        'password': request.password,
-        'avatar': request.avatar,
-        'phone': request.phone,
-        'introduction': request.introduction,
-      }),
+      body: jsonEncode(request.toJson()),
     );
 
     _ensureSuccessStatus(
