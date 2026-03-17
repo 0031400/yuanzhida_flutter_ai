@@ -8,6 +8,7 @@ import '../pages/profile_edit_page.dart';
 import '../pages/question_create_page.dart';
 import '../pages/question_browser_page.dart';
 import '../pages/register_page.dart';
+import '../pages/reset_password_page.dart';
 
 class AppRoutes {
   static const root = '/';
@@ -55,10 +56,9 @@ class AppRoutes {
           description: '对应通过邮箱找回用户名接口。',
         );
       case resetPassword:
-        return _placeholderRoute(
-          settings,
-          title: '重置密码',
-          description: '对应发送重置验证码和重置密码接口。',
+        return MaterialPageRoute<void>(
+          builder: (_) => const ResetPasswordPage(),
+          settings: settings,
         );
       case questionList:
         return MaterialPageRoute<void>(

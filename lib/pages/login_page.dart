@@ -262,6 +262,14 @@ class _LoginPageState extends State<LoginPage> {
                             },
                             child: const Text('没有账号？去注册'),
                           ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(
+                                context,
+                              ).pushNamed(AppRoutes.resetPassword);
+                            },
+                            child: const Text('忘记密码？去重置'),
+                          ),
                           Text(
                             'API: $kApiBaseUrl',
                             style: Theme.of(context).textTheme.bodySmall

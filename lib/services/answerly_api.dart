@@ -394,6 +394,19 @@ class AnswerlyApi {
     _ensureSuccessBody(response.body);
   }
 
+  Future<void> sendResetPasswordCode({required String mail}) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/answerly/v1/user/send-reset-password-code',
+    ).replace(queryParameters: {'mail': mail});
+    final response = await _client.get(uri);
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Send reset password code failed',
+    );
+    _ensureSuccessBody(response.body);
+  }
+
   Future<void> register({
     required String username,
     required String password,
@@ -414,6 +427,30 @@ class AnswerlyApi {
     );
 
     _ensureSuccessStatus(response, fallbackMessage: 'Register request failed');
+    _ensureSuccessBody(response.body);
+  }
+
+  Future<void> resetPassword({
+    required String username,
+    required String code,
+    required String newPassword,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/user/reset-password');
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    final response = await _client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({
+        'username': username,
+        'code': code,
+        'newPassword': newPassword,
+      }),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Reset password request failed',
+    );
     _ensureSuccessBody(response.body);
   }
 
