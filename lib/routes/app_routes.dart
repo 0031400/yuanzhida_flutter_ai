@@ -4,6 +4,7 @@ import '../pages/home_page.dart';
 import '../pages/login_page.dart';
 import '../pages/placeholder_page.dart';
 import '../pages/profile_page.dart';
+import '../pages/profile_edit_page.dart';
 import '../pages/question_browser_page.dart';
 import '../pages/register_page.dart';
 
@@ -108,10 +109,9 @@ class AppRoutes {
           settings: settings,
         );
       case profileEdit:
-        return _placeholderRoute(
-          settings,
-          title: '编辑资料',
-          description: '对应更新用户信息、退出登录接口。',
+        return MaterialPageRoute<void>(
+          builder: (_) => const ProfileEditPage(),
+          settings: settings,
         );
       case activityRank:
         return _placeholderRoute(

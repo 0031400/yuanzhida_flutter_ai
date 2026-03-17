@@ -112,6 +112,16 @@ class _ProfilePageState extends State<ProfilePage> {
     Navigator.of(context).pushReplacementNamed(AppRoutes.login);
   }
 
+  Future<void> _goToEdit() async {
+    final changed = await Navigator.of(context).pushNamed(AppRoutes.profileEdit);
+    if (!mounted) {
+      return;
+    }
+    if (changed == true) {
+      _loadProfile();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -121,6 +131,11 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         title: const Text('个人主页'),
         actions: [
+          IconButton(
+            onPressed: _loading || !isLoggedIn ? null : _goToEdit,
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: '编辑资料',
+          ),
           IconButton(
             onPressed: _loading ? null : _loadProfile,
             icon: const Icon(Icons.refresh),
@@ -323,10 +338,15 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 16),
           _InfoBlock(label: '简介快照', value: profile.introduction),
           const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _goToLogin,
-            child: const Text('返回登录页'),
-          ),
+           FilledButton(
+             onPressed: _goToEdit,
+             child: const Text('编辑资料'),
+           ),
+           const SizedBox(height: 12),
+           OutlinedButton(
+             onPressed: _goToLogin,
+             child: const Text('返回登录页'),
+           ),
         ],
       ),
     );

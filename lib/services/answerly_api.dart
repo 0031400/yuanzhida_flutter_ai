@@ -233,6 +233,24 @@ class ActualUserProfile {
   final String phone;
 }
 
+class UpdateUserProfileRequest {
+  const UpdateUserProfileRequest({
+    required this.oldUsername,
+    required this.newUsername,
+    this.password,
+    this.avatar,
+    required this.phone,
+    required this.introduction,
+  });
+
+  final String oldUsername;
+  final String newUsername;
+  final String? password;
+  final String? avatar;
+  final String phone;
+  final String introduction;
+}
+
 class CommentItem {
   const CommentItem({
     required this.id,
@@ -610,6 +628,49 @@ class AnswerlyApi {
     );
     final body = _ensureSuccessBody(response.body);
     return _readInt(body['data']);
+  }
+
+  Future<void> logout({required String username, required String token}) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/answerly/v1/user/logout',
+    ).replace(queryParameters: {'username': username, 'token': token});
+    final response = await _client.delete(
+      uri,
+      headers: _authHeaders(username: username, token: token),
+    );
+
+    _ensureSuccessStatus(response, fallbackMessage: 'Logout request failed');
+    _ensureSuccessBody(response.body);
+  }
+
+  Future<void> updateUserProfile({
+    required String authUsername,
+    required String token,
+    required UpdateUserProfileRequest request,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/user');
+    final headers = <String, String>{
+      ..._authHeaders(username: authUsername, token: token),
+      'Content-Type': 'application/json',
+    };
+    final response = await _client.put(
+      uri,
+      headers: headers,
+      body: jsonEncode({
+        'oldUsername': request.oldUsername,
+        'newUsername': request.newUsername,
+        'password': request.password,
+        'avatar': request.avatar,
+        'phone': request.phone,
+        'introduction': request.introduction,
+      }),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Update user profile request failed',
+    );
+    _ensureSuccessBody(response.body);
   }
 
   Map<String, String> _authHeaders({
