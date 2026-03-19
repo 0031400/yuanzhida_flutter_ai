@@ -193,7 +193,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         return item.name;
       }
     }
-    return '科目 $categoryId';
+    return '未知科目';
   }
 
   Future<void> _loadSelection(int questionId) async {
@@ -210,10 +210,22 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       _replyTargetComment = null;
     });
 
+    final cachedComments = await _api.readCachedCommentPage(
+      questionId: questionId,
+    );
+    if (mounted &&
+        cachedComments != null &&
+        _selectedQuestionId == questionId) {
+      setState(() {
+        _comments = cachedComments.records;
+        _commentTotal = cachedComments.total;
+      });
+    }
+
     try {
       final futures = await Future.wait([
         _api.fetchQuestionDetail(questionId),
-        _api.fetchCommentPage(questionId: questionId),
+        _api.fetchCommentPage(questionId: questionId, forceRefresh: true),
       ]);
       if (!mounted) {
         return;
@@ -332,7 +344,9 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     final replyTarget = _replyTargetComment;
     if (username == null || token == null) {
       setState(() {
-        _answerError = replyTarget == null ? '当前未登录，请先登录后发布解答' : '当前未登录，请先登录后发布回复';
+        _answerError = replyTarget == null
+            ? '当前未登录，请先登录后发布解答'
+            : '当前未登录，请先登录后发布回复';
       });
       return;
     }
@@ -399,9 +413,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         _uploadedImages.clear();
         _replyTargetComment = null;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(replyTarget == null ? '解答发布成功' : '回复发布成功')),
       );
       await _loadSelection(questionId);
@@ -413,7 +425,8 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         await AuthSession.clear();
       }
       setState(() {
-        _answerError = error.message ?? (replyTarget == null ? '发布解答失败' : '发布回复失败');
+        _answerError =
+            error.message ?? (replyTarget == null ? '发布解答失败' : '发布回复失败');
       });
     } catch (_) {
       if (!mounted) {

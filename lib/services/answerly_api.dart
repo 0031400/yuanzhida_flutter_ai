@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth_session.dart';
 import 'http_client_stub.dart'
@@ -42,6 +43,15 @@ class CategorySummary {
   final String name;
   final String image;
   final int sort;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'name': name,
+      'image': image,
+      'sort': sort,
+    };
+  }
 }
 
 class QuestionSummary {
@@ -162,6 +172,15 @@ class CommentPageData {
   final int total;
   final int current;
   final int size;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'records': records.map((item) => item.toJson()).toList(),
+      'total': total,
+      'current': current,
+      'size': size,
+    };
+  }
 }
 
 class CreateQuestionRequest {
@@ -379,6 +398,26 @@ class CommentItem {
   final String createTime;
   final List<CommentItem> childComments;
   final int questionId;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'content': content,
+      'parentCommentId': parentCommentId,
+      'topCommentId': topCommentId,
+      'images': images,
+      'username': username,
+      'usertype': userType,
+      'avatar': avatar,
+      'commentTo': commentTo,
+      'likeCount': likeCount,
+      'likeStatus': likeStatus,
+      'useful': useful,
+      'createTime': createTime,
+      'childComments': childComments.map((item) => item.toJson()).toList(),
+      'questionId': questionId,
+    };
+  }
 }
 
 class ApiException implements Exception {
@@ -394,9 +433,133 @@ class AnswerlyApi {
   AnswerlyApi({required this.baseUrl});
 
   static List<CategorySummary>? _categoryCache;
+  static bool _didRefreshCategoriesThisLaunch = false;
+  static final Map<String, CommentPageData> _commentPageCache =
+      <String, CommentPageData>{};
+  static const String _categoryCacheKey = 'answerly.category.cache.v1';
+  static const String _commentCacheKeyPrefix = 'answerly.comment.cache.v1';
 
   final String baseUrl;
   final http.Client _client = createHttpClient();
+
+  static String _commentCacheKey({
+    required int questionId,
+    required int current,
+    required int size,
+  }) => '$_commentCacheKeyPrefix.$questionId.$current.$size';
+
+  static List<CategorySummary> _sortCategories(List<CategorySummary> categories) {
+    categories.sort((a, b) {
+      final sortCompare = a.sort.compareTo(b.sort);
+      if (sortCompare != 0) {
+        return sortCompare;
+      }
+      return a.id.compareTo(b.id);
+    });
+    return categories;
+  }
+
+  static Future<void> _persistCategories(List<CategorySummary> categories) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _categoryCacheKey,
+      jsonEncode(categories.map((item) => item.toJson()).toList()),
+    );
+  }
+
+  static Future<List<CategorySummary>?> _readPersistedCategories() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_categoryCacheKey);
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) {
+      return null;
+    }
+    return _sortCategories(
+      decoded
+          .map(
+            (item) =>
+                CategorySummary.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
+          .toList(),
+    );
+  }
+
+  static Future<void> _persistCommentPage({
+    required int questionId,
+    required CommentPageData data,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _commentCacheKey(
+        questionId: questionId,
+        current: data.current,
+        size: data.size,
+      ),
+      jsonEncode(data.toJson()),
+    );
+  }
+
+  static Future<CommentPageData?> _readPersistedCommentPage({
+    required int questionId,
+    required int current,
+    required int size,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(
+      _commentCacheKey(questionId: questionId, current: current, size: size),
+    );
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) {
+      return null;
+    }
+    final map = Map<String, dynamic>.from(decoded);
+    final rawRecords = map['records'];
+    final records = rawRecords is List
+        ? rawRecords
+              .map(
+                (item) =>
+                    CommentItem.fromJson(Map<String, dynamic>.from(item as Map)),
+              )
+              .toList()
+        : const <CommentItem>[];
+    return CommentPageData(
+      records: records,
+      total: _readInt(map['total']),
+      current: _readInt(map['current']),
+      size: _readInt(map['size']),
+    );
+  }
+
+  Future<List<CategorySummary>> _fetchCategoriesFromNetwork() async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/category');
+    final response = await _client.get(uri);
+
+    _ensureSuccessStatus(response, fallbackMessage: 'Category request failed');
+    final body = _ensureSuccessBody(response.body);
+    final rawData = body['data'];
+    final categories = rawData is List
+        ? rawData
+              .map(
+                (item) => CategorySummary.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ),
+              )
+              .toList()
+        : <CategorySummary>[];
+    final sorted = List<CategorySummary>.unmodifiable(
+      _sortCategories(categories),
+    );
+    _categoryCache = sorted;
+    await _persistCategories(sorted);
+    _didRefreshCategoriesThisLaunch = true;
+    return sorted;
+  }
 
   Future<Uint8List> fetchCaptcha() async {
     final uri = Uri.parse('$baseUrl/api/answerly/v1/user/captcha');
@@ -552,31 +715,32 @@ class AnswerlyApi {
     if (!forceRefresh && _categoryCache != null) {
       return _categoryCache!;
     }
-
-    final uri = Uri.parse('$baseUrl/api/answerly/v1/category');
-    final response = await _client.get(uri);
-
-    _ensureSuccessStatus(response, fallbackMessage: 'Category request failed');
-    final body = _ensureSuccessBody(response.body);
-    final rawData = body['data'];
-    final categories = rawData is List
-        ? rawData
-              .map(
-                (item) => CategorySummary.fromJson(
-                  Map<String, dynamic>.from(item as Map),
-                ),
-              )
-              .toList()
-        : <CategorySummary>[];
-    categories.sort((a, b) {
-      final sortCompare = a.sort.compareTo(b.sort);
-      if (sortCompare != 0) {
-        return sortCompare;
+    final persisted = await _readPersistedCategories();
+    final shouldRefreshFromNetwork = forceRefresh || !_didRefreshCategoriesThisLaunch;
+    if (shouldRefreshFromNetwork) {
+      try {
+        return await _fetchCategoriesFromNetwork();
+      } on ApiException {
+        if (persisted != null) {
+          _categoryCache = List<CategorySummary>.unmodifiable(persisted);
+          _didRefreshCategoriesThisLaunch = true;
+          return _categoryCache!;
+        }
+        rethrow;
+      } catch (_) {
+        if (persisted != null) {
+          _categoryCache = List<CategorySummary>.unmodifiable(persisted);
+          _didRefreshCategoriesThisLaunch = true;
+          return _categoryCache!;
+        }
+        rethrow;
       }
-      return a.id.compareTo(b.id);
-    });
-    _categoryCache = List<CategorySummary>.unmodifiable(categories);
-    return _categoryCache!;
+    }
+    if (persisted != null) {
+      _categoryCache = List<CategorySummary>.unmodifiable(persisted);
+      return _categoryCache!;
+    }
+    return _fetchCategoriesFromNetwork();
   }
 
   Future<QuestionDetail> fetchQuestionDetail(int id) async {
@@ -662,7 +826,29 @@ class AnswerlyApi {
     required int questionId,
     int current = 1,
     int size = 20,
+    bool forceRefresh = false,
   }) async {
+    final cacheKey = _commentCacheKey(
+      questionId: questionId,
+      current: current,
+      size: size,
+    );
+    if (!forceRefresh) {
+      final memoryCached = _commentPageCache[cacheKey];
+      if (memoryCached != null) {
+        return memoryCached;
+      }
+      final persistedCached = await _readPersistedCommentPage(
+        questionId: questionId,
+        current: current,
+        size: size,
+      );
+      if (persistedCached != null) {
+        _commentPageCache[cacheKey] = persistedCached;
+        return persistedCached;
+      }
+    }
+
     final uri = Uri.parse('$baseUrl/api/answerly/v1/comment/page').replace(
       queryParameters: {
         'current': '$current',
@@ -689,12 +875,40 @@ class AnswerlyApi {
               .toList()
         : const <CommentItem>[];
 
-    return CommentPageData(
+    final result = CommentPageData(
       records: records,
       total: _readInt(data['total']),
       current: _readInt(data['current']),
       size: _readInt(data['size']),
     );
+    _commentPageCache[cacheKey] = result;
+    await _persistCommentPage(questionId: questionId, data: result);
+    return result;
+  }
+
+  Future<CommentPageData?> readCachedCommentPage({
+    required int questionId,
+    int current = 1,
+    int size = 20,
+  }) async {
+    final cacheKey = _commentCacheKey(
+      questionId: questionId,
+      current: current,
+      size: size,
+    );
+    final memoryCached = _commentPageCache[cacheKey];
+    if (memoryCached != null) {
+      return memoryCached;
+    }
+    final persistedCached = await _readPersistedCommentPage(
+      questionId: questionId,
+      current: current,
+      size: size,
+    );
+    if (persistedCached != null) {
+      _commentPageCache[cacheKey] = persistedCached;
+    }
+    return persistedCached;
   }
 
   Future<void> createComment({
