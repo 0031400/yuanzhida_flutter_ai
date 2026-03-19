@@ -41,6 +41,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   final Set<int> _likingCommentIds = <int>{};
   final Set<int> _deletingCommentIds = <int>{};
   bool _answerMode = false;
+  CommentItem? _replyTargetComment;
   String? _categoryError;
   String? _listError;
   String? _detailError;
@@ -206,6 +207,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       _selectedQuestion = null;
       _comments = const [];
       _commentTotal = 0;
+      _replyTargetComment = null;
     });
 
     try {
@@ -327,9 +329,10 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     final token = AuthSession.token;
     final questionId = _selectedQuestionId;
     final content = _answerController.text.trim();
+    final replyTarget = _replyTargetComment;
     if (username == null || token == null) {
       setState(() {
-        _answerError = '当前未登录，请先登录后发布解答';
+        _answerError = replyTarget == null ? '当前未登录，请先登录后发布解答' : '当前未登录，请先登录后发布回复';
       });
       return;
     }
@@ -341,13 +344,13 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     }
     if (content.isEmpty) {
       setState(() {
-        _answerError = '请输入解答内容';
+        _answerError = replyTarget == null ? '请输入解答内容' : '请输入回复内容';
       });
       return;
     }
     if (content.length < 5) {
       setState(() {
-        _answerError = '解答内容至少 5 个字符';
+        _answerError = replyTarget == null ? '解答内容至少 5 个字符' : '回复内容至少 5 个字符';
       });
       return;
     }
@@ -379,6 +382,12 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         request: CreateCommentRequest(
           questionId: questionId,
           content: content,
+          parentCommentId: replyTarget?.id ?? 0,
+          topCommentId: replyTarget == null
+              ? 0
+              : (replyTarget.topCommentId == 0
+                    ? replyTarget.id
+                    : replyTarget.topCommentId),
           images: _uploadedImages.map((item) => item.serverPath).join(','),
         ),
       );
@@ -388,10 +397,13 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       _answerController.clear();
       setState(() {
         _uploadedImages.clear();
+        _replyTargetComment = null;
       });
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('解答发布成功')));
+      ).showSnackBar(
+        SnackBar(content: Text(replyTarget == null ? '解答发布成功' : '回复发布成功')),
+      );
       await _loadSelection(questionId);
     } on ApiException catch (error) {
       if (!mounted) {
@@ -401,7 +413,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         await AuthSession.clear();
       }
       setState(() {
-        _answerError = error.message ?? '发布解答失败';
+        _answerError = error.message ?? (replyTarget == null ? '发布解答失败' : '发布回复失败');
       });
     } catch (_) {
       if (!mounted) {
@@ -422,6 +434,21 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   void _removeUploadedImage(_UploadedImage image) {
     setState(() {
       _uploadedImages.remove(image);
+    });
+  }
+
+  void _startReplyToComment(CommentItem comment) {
+    setState(() {
+      _answerMode = true;
+      _answerError = null;
+      _replyTargetComment = comment;
+    });
+  }
+
+  void _cancelReplyTarget() {
+    setState(() {
+      _replyTargetComment = null;
+      _answerError = null;
     });
   }
 
@@ -882,6 +909,9 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                     setState(() {
                       _answerMode = !_answerMode;
                       _answerError = null;
+                      if (!_answerMode) {
+                        _replyTargetComment = null;
+                      }
                     });
                   },
             icon: Icon(
@@ -1155,10 +1185,12 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
 
   Widget _buildAnswerComposerPanel() {
     return _PanelScaffold(
-      title: '新建解答',
+      title: _replyTargetComment == null ? '新建解答' : '新建回复',
       subtitle: _selectedQuestionId == null
           ? '请先在题目列表中选择题目'
-          : '当前题目 ID $_selectedQuestionId',
+          : _replyTargetComment == null
+          ? '当前题目 ID $_selectedQuestionId'
+          : '正在回复 ${_replyTargetComment!.username}',
       child: _buildAnswerComposerContent(),
     );
   }
@@ -1180,20 +1212,64 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
             child: Text(
               _selectedQuestion == null
                   ? '请先切回题目列表并选择一个题目，再来编写解答。'
-                  : '当前题目：${_selectedQuestion!.title}\n当前未登录，登录后才能发布解答。',
+                  : '当前题目：${_selectedQuestion!.title}\n当前未登录，登录后才能发布${_replyTargetComment == null ? '解答' : '回复'}。',
               style: theme.textTheme.bodyMedium,
             ),
           ),
+        if (_replyTargetComment != null) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '正在回应 ${_replyTargetComment!.username} 的解答',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _replyTargetComment!.content.isEmpty
+                            ? '暂无内容'
+                            : _replyTargetComment!.content,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: _submittingAnswer ? null : _cancelReplyTarget,
+                  child: const Text('取消回复'),
+                ),
+              ],
+            ),
+          ),
+        ],
         TextField(
           controller: _answerController,
           enabled: !_submittingAnswer,
           minLines: 10,
           maxLines: 14,
-          decoration: const InputDecoration(
-            labelText: '解答内容',
-            hintText: '写下你的解法、推导过程、结论或补充说明',
+          decoration: InputDecoration(
+            labelText: _replyTargetComment == null ? '解答内容' : '回复内容',
+            hintText: _replyTargetComment == null
+                ? '写下你的解法、推导过程、结论或补充说明'
+                : '写下你要补充、追问或回应的内容',
             alignLabelWithHint: true,
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 16),
@@ -1201,7 +1277,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           children: [
             Expanded(
               child: Text(
-                '解答图片',
+                _replyTargetComment == null ? '解答图片' : '回复图片',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -1225,7 +1301,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         const SizedBox(height: 10),
         Text(
           _uploadedImages.isEmpty
-              ? '可选。上传的图片会附加到当前解答。'
+              ? '可选。上传的图片会附加到当前${_replyTargetComment == null ? '解答' : '回复'}。'
               : '已上传 ${_uploadedImages.length} 张图片。',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.outline,
@@ -1304,7 +1380,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('发布解答'),
+              : Text(_replyTargetComment == null ? '发布解答' : '发布回复'),
         ),
       ],
     );
@@ -1523,7 +1599,9 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           comment: comment,
           liking: _likingCommentIds.contains(comment.id),
           deleting: _deletingCommentIds.contains(comment.id),
+          showReplyAction: _answerMode,
           onLike: () => _likeComment(comment),
+          onReply: () => _startReplyToComment(comment),
           onDeleteComment: _deleteComment,
           isDeletingComment: (commentId) =>
               _deletingCommentIds.contains(commentId),
@@ -1582,7 +1660,9 @@ class _CommentCard extends StatelessWidget {
     required this.comment,
     required this.liking,
     required this.deleting,
+    required this.showReplyAction,
     required this.onLike,
+    required this.onReply,
     required this.onDeleteComment,
     required this.isDeletingComment,
     required this.onPreviewImage,
@@ -1591,7 +1671,9 @@ class _CommentCard extends StatelessWidget {
   final CommentItem comment;
   final bool liking;
   final bool deleting;
+  final bool showReplyAction;
   final VoidCallback onLike;
+  final VoidCallback onReply;
   final ValueChanged<CommentItem> onDeleteComment;
   final bool Function(int commentId) isDeletingComment;
   final ValueChanged<String> onPreviewImage;
@@ -1700,6 +1782,12 @@ class _CommentCard extends StatelessWidget {
                         : '点赞 ${comment.likeCount}',
                   ),
                 ),
+                if (showReplyAction)
+                  FilledButton.tonalIcon(
+                    onPressed: deleting ? null : onReply,
+                    icon: const Icon(Icons.reply_outlined, size: 18),
+                    label: const Text('回应此解答'),
+                  ),
                 _InfoTag(
                   icon: Icons.verified_outlined,
                   label: '${comment.useful} 有用',
