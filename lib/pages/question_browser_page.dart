@@ -1610,14 +1610,14 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         final comment = _comments[index];
         return _CommentCard(
           comment: comment,
-          liking: _likingCommentIds.contains(comment.id),
-          deleting: _deletingCommentIds.contains(comment.id),
           showReplyAction: _answerMode,
-          onLike: () => _likeComment(comment),
-          onReply: () => _startReplyToComment(comment),
-          onDeleteComment: _deleteComment,
+          isTopLevel: true,
+          isLikingComment: (commentId) => _likingCommentIds.contains(commentId),
           isDeletingComment: (commentId) =>
               _deletingCommentIds.contains(commentId),
+          onLikeComment: _likeComment,
+          onReplyComment: _startReplyToComment,
+          onDeleteComment: _deleteComment,
           onPreviewImage: _showImageViewer,
         );
       },
@@ -1668,32 +1668,61 @@ class _PanelScaffold extends StatelessWidget {
   }
 }
 
-class _CommentCard extends StatelessWidget {
+class _CommentCard extends StatefulWidget {
   const _CommentCard({
     required this.comment,
-    required this.liking,
-    required this.deleting,
     required this.showReplyAction,
-    required this.onLike,
-    required this.onReply,
-    required this.onDeleteComment,
+    this.isTopLevel = false,
+    required this.isLikingComment,
     required this.isDeletingComment,
+    required this.onLikeComment,
+    required this.onReplyComment,
+    required this.onDeleteComment,
     required this.onPreviewImage,
   });
 
   final CommentItem comment;
-  final bool liking;
-  final bool deleting;
   final bool showReplyAction;
-  final VoidCallback onLike;
-  final VoidCallback onReply;
-  final ValueChanged<CommentItem> onDeleteComment;
+  final bool isTopLevel;
+  final bool Function(int commentId) isLikingComment;
   final bool Function(int commentId) isDeletingComment;
+  final ValueChanged<CommentItem> onLikeComment;
+  final ValueChanged<CommentItem> onReplyComment;
+  final ValueChanged<CommentItem> onDeleteComment;
   final ValueChanged<String> onPreviewImage;
 
   @override
+  State<_CommentCard> createState() => _CommentCardState();
+}
+
+class _CommentCardState extends State<_CommentCard> {
+  static const int _initialVisibleChildCount = 2;
+  static const int _childIncrementCount = 5;
+
+  int _visibleChildCount = _initialVisibleChildCount;
+
+  @override
+  void didUpdateWidget(covariant _CommentCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.comment.id != widget.comment.id) {
+      _visibleChildCount = _initialVisibleChildCount;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final comment = widget.comment;
     final theme = Theme.of(context);
+    final liking = widget.isLikingComment(comment.id);
+    final deleting = widget.isDeletingComment(comment.id);
+    final visibleChildren = comment.childComments
+        .take(_visibleChildCount)
+        .toList();
+    final canExpandChildren = _visibleChildCount < comment.childComments.length;
+    final canCollapseChildren =
+        comment.childComments.length > _initialVisibleChildCount &&
+        _visibleChildCount > _initialVisibleChildCount;
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
@@ -1727,7 +1756,9 @@ class _CommentCard extends StatelessWidget {
                 ),
                 if (AuthSession.username == comment.username)
                   TextButton.icon(
-                    onPressed: deleting ? null : () => onDeleteComment(comment),
+                    onPressed: deleting
+                        ? null
+                        : () => widget.onDeleteComment(comment),
                     icon: deleting
                         ? const SizedBox(
                             width: 14,
@@ -1763,8 +1794,9 @@ class _CommentCard extends StatelessWidget {
                       (image) => _SquareImageThumbnail(
                         imageUrl: AppConfig.resolveMediaUrl(image),
                         size: 120,
-                        onTap: () =>
-                            onPreviewImage(AppConfig.resolveMediaUrl(image)),
+                        onTap: () => widget.onPreviewImage(
+                          AppConfig.resolveMediaUrl(image),
+                        ),
                       ),
                     )
                     .toList(),
@@ -1776,7 +1808,9 @@ class _CommentCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 FilledButton.tonalIcon(
-                  onPressed: liking || deleting ? null : onLike,
+                  onPressed: liking || deleting
+                      ? null
+                      : () => widget.onLikeComment(comment),
                   icon: liking
                       ? const SizedBox(
                           width: 16,
@@ -1795,9 +1829,11 @@ class _CommentCard extends StatelessWidget {
                         : '点赞 ${comment.likeCount}',
                   ),
                 ),
-                if (showReplyAction)
+                if (widget.showReplyAction && widget.isTopLevel)
                   FilledButton.tonalIcon(
-                    onPressed: deleting ? null : onReply,
+                    onPressed: deleting
+                        ? null
+                        : () => widget.onReplyComment(comment),
                     icon: const Icon(Icons.reply_outlined, size: 18),
                     label: const Text('回应此解答'),
                   ),
@@ -1818,38 +1854,50 @@ class _CommentCard extends StatelessWidget {
                 style: theme.textTheme.labelLarge,
               ),
               const SizedBox(height: 8),
-              for (final child in comment.childComments)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
+              for (final child in visibleChildren) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _CommentCard(
+                    comment: child,
+                    showReplyAction: widget.showReplyAction,
+                    isTopLevel: false,
+                    isLikingComment: widget.isLikingComment,
+                    isDeletingComment: widget.isDeletingComment,
+                    onLikeComment: widget.onLikeComment,
+                    onReplyComment: widget.onReplyComment,
+                    onDeleteComment: widget.onDeleteComment,
+                    onPreviewImage: widget.onPreviewImage,
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text('${child.username}: ${child.content}'),
-                      ),
-                      if (AuthSession.username == child.username)
-                        TextButton.icon(
-                          onPressed: isDeletingComment(child.id)
-                              ? null
-                              : () => onDeleteComment(child),
-                          icon: isDeletingComment(child.id)
-                              ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.delete_outline, size: 16),
-                          label: const Text('删除'),
+                ),
+              ],
+              if (canExpandChildren || canCollapseChildren)
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    if (canExpandChildren)
+                      TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _visibleChildCount += _childIncrementCount;
+                          });
+                        },
+                        icon: const Icon(Icons.expand_more),
+                        label: Text(
+                          '展开更多 (${comment.childComments.length - visibleChildren.length})',
                         ),
-                    ],
-                  ),
+                      ),
+                    if (canCollapseChildren)
+                      TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _visibleChildCount = _initialVisibleChildCount;
+                          });
+                        },
+                        icon: const Icon(Icons.expand_less),
+                        label: const Text('收起'),
+                      ),
+                  ],
                 ),
             ],
           ],
