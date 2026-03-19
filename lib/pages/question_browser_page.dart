@@ -822,6 +822,14 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       }
       return;
     }
+    if (comment.childComments.isNotEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('只有没有子评论的评论才可以删除')));
+      }
+      return;
+    }
     if (!await _ensureLoggedInForQuestionAction()) {
       return;
     }
@@ -1754,7 +1762,8 @@ class _CommentCardState extends State<_CommentCard> {
                     ),
                   ),
                 ),
-                if (AuthSession.username == comment.username)
+                if (AuthSession.username == comment.username &&
+                    comment.childComments.isEmpty)
                   TextButton.icon(
                     onPressed: deleting
                         ? null
