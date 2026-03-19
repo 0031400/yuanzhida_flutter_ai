@@ -36,6 +36,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   bool _submittingAnswer = false;
   bool _likingQuestion = false;
   bool _collectingQuestion = false;
+  final Set<int> _likingCommentIds = <int>{};
   bool _answerMode = false;
   String? _categoryError;
   String? _listError;
@@ -583,6 +584,70 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       if (mounted) {
         setState(() {
           _collectingQuestion = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _likeComment(CommentItem comment) async {
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    final questionId = _selectedQuestionId;
+    if (username == null || token == null) {
+      await _ensureLoggedInForQuestionAction();
+      return;
+    }
+    if (questionId == null) {
+      return;
+    }
+    if (!await _ensureLoggedInForQuestionAction()) {
+      return;
+    }
+
+    setState(() {
+      _likingCommentIds.add(comment.id);
+      _commentError = null;
+    });
+
+    try {
+      await _api.likeComment(
+        username: username,
+        token: token,
+        request: QuestionEngagementRequest(
+          id: comment.id,
+          entityUserId: _selectedQuestion?.userId ?? 0,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isLiked(comment.likeStatus) ? '已取消评论点赞' : '评论点赞成功'),
+        ),
+      );
+      await _loadSelection(questionId);
+    } on ApiException catch (error) {
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message ?? '评论点赞失败')));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('网络异常，请稍后重试')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _likingCommentIds.remove(comment.id);
         });
       }
     }
@@ -1224,7 +1289,12 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       itemCount: _comments.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        return _CommentCard(comment: _comments[index]);
+        final comment = _comments[index];
+        return _CommentCard(
+          comment: comment,
+          liking: _likingCommentIds.contains(comment.id),
+          onLike: () => _likeComment(comment),
+        );
       },
     );
   }
@@ -1274,9 +1344,15 @@ class _PanelScaffold extends StatelessWidget {
 }
 
 class _CommentCard extends StatelessWidget {
-  const _CommentCard({required this.comment});
+  const _CommentCard({
+    required this.comment,
+    required this.liking,
+    required this.onLike,
+  });
 
   final CommentItem comment;
+  final bool liking;
+  final VoidCallback onLike;
 
   @override
   Widget build(BuildContext context) {
@@ -1352,9 +1428,25 @@ class _CommentCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 8,
               children: [
-                _InfoTag(
-                  icon: Icons.thumb_up_alt_outlined,
-                  label: '${comment.likeCount}',
+                FilledButton.tonalIcon(
+                  onPressed: liking ? null : onLike,
+                  icon: liking
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          _isLiked(comment.likeStatus)
+                              ? Icons.thumb_up_alt
+                              : Icons.thumb_up_alt_outlined,
+                          size: 18,
+                        ),
+                  label: Text(
+                    _isLiked(comment.likeStatus)
+                        ? '已点赞 ${comment.likeCount}'
+                        : '点赞 ${comment.likeCount}',
+                  ),
                 ),
                 _InfoTag(
                   icon: Icons.verified_outlined,

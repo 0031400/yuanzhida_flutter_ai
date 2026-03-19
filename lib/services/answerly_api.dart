@@ -752,6 +752,29 @@ class AnswerlyApi {
     _ensureSuccessBody(response.body);
   }
 
+  Future<void> likeComment({
+    required String username,
+    required String token,
+    required QuestionEngagementRequest request,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/comment/like');
+    final headers = <String, String>{
+      ..._authHeaders(username: username, token: token),
+      'Content-Type': 'application/json',
+    };
+    final response = await _client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(request.toJson()),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Like comment request failed',
+    );
+    _ensureSuccessBody(response.body);
+  }
+
   Future<String> login({
     required String username,
     required String password,
