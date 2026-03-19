@@ -723,6 +723,23 @@ class AnswerlyApi {
     _ensureSuccessBody(response.body);
   }
 
+  Future<void> deleteComment({
+    required String username,
+    required String token,
+    required int id,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/answerly/v1/comment',
+    ).replace(queryParameters: {'id': '$id'});
+    final response = await _client.delete(
+      uri,
+      headers: _authHeaders(username: username, token: token),
+    );
+
+    _ensureSuccessStatus(response, fallbackMessage: 'Delete comment failed');
+    _ensureSuccessBody(response.body);
+  }
+
   Future<void> likeQuestion({
     required String username,
     required String token,

@@ -39,6 +39,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   bool _collectingQuestion = false;
   bool _deletingQuestion = false;
   final Set<int> _likingCommentIds = <int>{};
+  final Set<int> _deletingCommentIds = <int>{};
   bool _answerMode = false;
   String? _categoryError;
   String? _listError;
@@ -762,6 +763,102 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     }
   }
 
+  Future<void> _deleteComment(CommentItem comment) async {
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    final questionId = _selectedQuestionId;
+    if (username == null || token == null) {
+      await _ensureLoggedInForQuestionAction();
+      return;
+    }
+    if (questionId == null) {
+      return;
+    }
+    if (username != comment.username) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('只有评论作者可以删除评论')));
+      }
+      return;
+    }
+    if (!await _ensureLoggedInForQuestionAction()) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('删除评论'),
+          content: const Text('确认删除这条评论吗？此操作不可恢复。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('确认删除'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _deletingCommentIds.add(comment.id);
+      _commentError = null;
+    });
+
+    try {
+      await _api.deleteComment(
+        username: username,
+        token: token,
+        id: comment.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('评论已删除')));
+      await _loadSelection(questionId);
+    } on ApiException catch (error) {
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message ?? '删除评论失败')));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('网络异常，请稍后重试')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deletingCommentIds.remove(comment.id);
+        });
+      }
+    }
+  }
+
   Future<void> _showImageViewer(String imageUrl) async {
     await showDialog<void>(
       context: context,
@@ -1425,7 +1522,11 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         return _CommentCard(
           comment: comment,
           liking: _likingCommentIds.contains(comment.id),
+          deleting: _deletingCommentIds.contains(comment.id),
           onLike: () => _likeComment(comment),
+          onDeleteComment: _deleteComment,
+          isDeletingComment: (commentId) =>
+              _deletingCommentIds.contains(commentId),
           onPreviewImage: _showImageViewer,
         );
       },
@@ -1480,13 +1581,19 @@ class _CommentCard extends StatelessWidget {
   const _CommentCard({
     required this.comment,
     required this.liking,
+    required this.deleting,
     required this.onLike,
+    required this.onDeleteComment,
+    required this.isDeletingComment,
     required this.onPreviewImage,
   });
 
   final CommentItem comment;
   final bool liking;
+  final bool deleting;
   final VoidCallback onLike;
+  final ValueChanged<CommentItem> onDeleteComment;
+  final bool Function(int commentId) isDeletingComment;
   final ValueChanged<String> onPreviewImage;
 
   @override
@@ -1523,6 +1630,18 @@ class _CommentCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (AuthSession.username == comment.username)
+                  TextButton.icon(
+                    onPressed: deleting ? null : () => onDeleteComment(comment),
+                    icon: deleting
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('删除'),
+                  ),
                 if (comment.userType.isNotEmpty)
                   _Badge(label: comment.userType),
               ],
@@ -1562,7 +1681,7 @@ class _CommentCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 FilledButton.tonalIcon(
-                  onPressed: liking ? null : onLike,
+                  onPressed: liking || deleting ? null : onLike,
                   icon: liking
                       ? const SizedBox(
                           width: 16,
@@ -1606,7 +1725,30 @@ class _CommentCard extends StatelessWidget {
                     color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text('${child.username}: ${child.content}'),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text('${child.username}: ${child.content}'),
+                      ),
+                      if (AuthSession.username == child.username)
+                        TextButton.icon(
+                          onPressed: isDeletingComment(child.id)
+                              ? null
+                              : () => onDeleteComment(child),
+                          icon: isDeletingComment(child.id)
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.delete_outline, size: 16),
+                          label: const Text('删除'),
+                        ),
+                    ],
+                  ),
                 ),
             ],
           ],
