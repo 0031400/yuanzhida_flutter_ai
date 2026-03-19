@@ -11,6 +11,7 @@ class HtmlImageView extends StatefulWidget {
     this.height,
     this.fit = BoxFit.cover,
     this.borderRadius,
+    this.scale = 1,
     this.errorText = '图片加载失败',
   });
 
@@ -19,6 +20,7 @@ class HtmlImageView extends StatefulWidget {
   final double? height;
   final BoxFit fit;
   final BorderRadius? borderRadius;
+  final double scale;
   final String errorText;
 
   @override
@@ -28,7 +30,7 @@ class HtmlImageView extends StatefulWidget {
 class _HtmlImageViewState extends State<HtmlImageView> {
   static int _nextId = 0;
 
-  late final String _viewType;
+  late String _viewType;
 
   @override
   void initState() {
@@ -40,7 +42,9 @@ class _HtmlImageViewState extends State<HtmlImageView> {
         ..style.width = '100%'
         ..style.height = '100%'
         ..style.display = 'block'
-        ..style.objectFit = _objectFit(widget.fit);
+        ..style.objectFit = _objectFit(widget.fit)
+        ..style.transformOrigin = 'center center'
+        ..style.transform = 'scale(${widget.scale})';
       return image;
     });
   }
@@ -56,6 +60,28 @@ class _HtmlImageViewState extends State<HtmlImageView> {
       child = ClipRRect(borderRadius: widget.borderRadius!, child: child);
     }
     return child;
+  }
+
+  @override
+  void didUpdateWidget(covariant HtmlImageView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        oldWidget.fit != widget.fit ||
+        oldWidget.scale != widget.scale) {
+      _viewType = 'answerly-html-image-${_nextId++}';
+      ui_web.platformViewRegistry.registerViewFactory(_viewType, (viewId) {
+        final image = web.HTMLImageElement()
+          ..src = widget.imageUrl
+          ..style.width = '100%'
+          ..style.height = '100%'
+          ..style.display = 'block'
+          ..style.objectFit = _objectFit(widget.fit)
+          ..style.transformOrigin = 'center center'
+          ..style.transform = 'scale(${widget.scale})';
+        return image;
+      });
+      setState(() {});
+    }
   }
 
   String _objectFit(BoxFit fit) {

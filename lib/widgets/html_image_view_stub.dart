@@ -8,6 +8,7 @@ class HtmlImageView extends StatelessWidget {
     this.height,
     this.fit = BoxFit.cover,
     this.borderRadius,
+    this.scale = 1,
     this.errorText = '图片加载失败',
   });
 
@@ -16,17 +17,21 @@ class HtmlImageView extends StatelessWidget {
   final double? height;
   final BoxFit fit;
   final BorderRadius? borderRadius;
+  final double scale;
   final String errorText;
 
   @override
   Widget build(BuildContext context) {
-    Widget child = Image.network(
-      imageUrl,
-      width: width,
-      height: height,
-      fit: fit,
-      errorBuilder: (_, _, _) =>
-          _ImageErrorBox(width: width, height: height, errorText: errorText),
+    Widget child = Transform.scale(
+      scale: scale,
+      child: Image.network(
+        imageUrl,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (_, _, _) =>
+            _ImageErrorBox(width: width, height: height, errorText: errorText),
+      ),
     );
     if (borderRadius != null) {
       child = ClipRRect(borderRadius: borderRadius!, child: child);

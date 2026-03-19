@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
@@ -761,6 +762,14 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     }
   }
 
+  Future<void> _showImageViewer(String imageUrl) async {
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (_) => _FullscreenImageViewer(imageUrl: imageUrl),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -1354,28 +1363,20 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         ),
         if (images.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Text('图片', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 10),
-          for (final image in images)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    HtmlImageView(
-                      imageUrl: AppConfig.resolveMediaUrl(image),
-                      fit: BoxFit.cover,
-                      height: 220,
-                      errorText: '图片加载失败',
-                    ),
-                    const SizedBox(height: 6),
-                    SelectableText(AppConfig.resolveMediaUrl(image)),
-                  ],
-                ),
-              ),
-            ),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: images
+                .map(
+                  (image) => _SquareImageThumbnail(
+                    imageUrl: AppConfig.resolveMediaUrl(image),
+                    size: 160,
+                    onTap: () =>
+                        _showImageViewer(AppConfig.resolveMediaUrl(image)),
+                  ),
+                )
+                .toList(),
+          ),
         ],
         const SizedBox(height: 20),
         _MetaBlock(label: '创建时间', value: _formatDateTime(detail.createTime)),
@@ -1425,6 +1426,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           comment: comment,
           liking: _likingCommentIds.contains(comment.id),
           onLike: () => _likeComment(comment),
+          onPreviewImage: _showImageViewer,
         );
       },
     );
@@ -1479,11 +1481,13 @@ class _CommentCard extends StatelessWidget {
     required this.comment,
     required this.liking,
     required this.onLike,
+    required this.onPreviewImage,
   });
 
   final CommentItem comment;
   final bool liking;
   final VoidCallback onLike;
+  final ValueChanged<String> onPreviewImage;
 
   @override
   Widget build(BuildContext context) {
@@ -1542,13 +1546,11 @@ class _CommentCard extends StatelessWidget {
                     .map((item) => item.trim())
                     .where((item) => item.isNotEmpty)
                     .map(
-                      (image) => HtmlImageView(
+                      (image) => _SquareImageThumbnail(
                         imageUrl: AppConfig.resolveMediaUrl(image),
-                        width: 120,
-                        height: 120,
-                        fit: BoxFit.cover,
-                        borderRadius: BorderRadius.circular(12),
-                        errorText: '加载失败',
+                        size: 120,
+                        onTap: () =>
+                            onPreviewImage(AppConfig.resolveMediaUrl(image)),
                       ),
                     )
                     .toList(),
@@ -1609,6 +1611,225 @@ class _CommentCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SquareImageThumbnail extends StatelessWidget {
+  const _SquareImageThumbnail({
+    required this.imageUrl,
+    required this.size,
+    required this.onTap,
+  });
+
+  final String imageUrl;
+  final double size;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colorScheme.outlineVariant),
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: HtmlImageView(
+                    imageUrl: imageUrl,
+                    width: size - 20,
+                    height: size - 20,
+                    fit: BoxFit.contain,
+                    borderRadius: BorderRadius.circular(12),
+                    errorText: '加载失败',
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.open_in_full,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FullscreenImageViewer extends StatefulWidget {
+  const _FullscreenImageViewer({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  State<_FullscreenImageViewer> createState() => _FullscreenImageViewerState();
+}
+
+class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
+  double _scale = 1;
+  double _gestureScaleStart = 1;
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  void _zoom(double factor) {
+    setState(() {
+      _scale = (_scale * factor).clamp(0.5, 6.0);
+    });
+  }
+
+  void _reset() {
+    setState(() {
+      _scale = 1;
+    });
+  }
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    _gestureScaleStart = _scale;
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    setState(() {
+      _scale = (_gestureScaleStart * details.scale).clamp(0.5, 6.0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog.fullscreen(
+      backgroundColor: Colors.black,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Listener(
+                    onPointerSignal: (event) {
+                      if (event is PointerScrollEvent) {
+                        if (event.scrollDelta.dy < 0) {
+                          _zoom(1.1);
+                        } else if (event.scrollDelta.dy > 0) {
+                          _zoom(0.9);
+                        }
+                      }
+                    },
+                    child: GestureDetector(
+                      onScaleStart: _handleScaleStart,
+                      onScaleUpdate: _handleScaleUpdate,
+                      child: SizedBox(
+                        width: constraints.maxWidth,
+                        height: constraints.maxHeight,
+                        child: Center(
+                          child: HtmlImageView(
+                            imageUrl: widget.imageUrl,
+                            width: constraints.maxWidth,
+                            height: constraints.maxHeight,
+                            fit: BoxFit.contain,
+                            scale: _scale,
+                            errorText: '图片加载失败',
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ViewerButton(
+                    icon: Icons.remove,
+                    tooltip: '缩小',
+                    onPressed: () => _zoom(0.9),
+                  ),
+                  const SizedBox(width: 8),
+                  _ViewerButton(
+                    icon: Icons.refresh,
+                    tooltip: '重置',
+                    onPressed: _reset,
+                  ),
+                  const SizedBox(width: 8),
+                  _ViewerButton(
+                    icon: Icons.add,
+                    tooltip: '放大',
+                    onPressed: () => _zoom(1.1),
+                  ),
+                  const SizedBox(width: 8),
+                  _ViewerButton(
+                    icon: Icons.close,
+                    tooltip: '关闭',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ViewerButton extends StatelessWidget {
+  const _ViewerButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: FilledButton.tonal(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.14),
+          foregroundColor: Colors.white,
+          minimumSize: const Size(44, 44),
+          padding: EdgeInsets.zero,
+        ),
+        child: Icon(icon),
       ),
     );
   }
