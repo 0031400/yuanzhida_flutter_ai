@@ -670,6 +670,14 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
       }
       return;
     }
+    if (detail.commentCount > 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('只有评论数为 0 的题目才可以删除')));
+      }
+      return;
+    }
     if (!await _ensureLoggedInForQuestionAction()) {
       return;
     }
@@ -1224,7 +1232,8 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     if (detail == null) {
       return const _EmptyState(message: '请选择左侧题目');
     }
-    final canDeleteQuestion = AuthSession.username == detail.username;
+    final canDeleteQuestion =
+        AuthSession.username == detail.username && detail.commentCount == 0;
 
     final images = detail.images
         .split(',')
