@@ -424,6 +424,19 @@ class AnswerlyApi {
     _ensureSuccessBody(response.body);
   }
 
+  Future<void> forgetUsername({required String mail}) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/answerly/v1/user/forget-username',
+    ).replace(queryParameters: {'mail': mail});
+    final response = await _client.get(uri);
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Forget username request failed',
+    );
+    _ensureSuccessBody(response.body);
+  }
+
   Future<void> register({
     required String username,
     required String password,
@@ -599,7 +612,9 @@ class AnswerlyApi {
     final uri = Uri.parse('$baseUrl/cos/upload');
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll(_authHeaders(username: username, token: token))
-      ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+      ..files.add(
+        http.MultipartFile.fromBytes('file', bytes, filename: filename),
+      );
     final streamedResponse = await _client.send(request);
     final response = await http.Response.fromStream(streamedResponse);
 
@@ -732,9 +747,7 @@ class AnswerlyApi {
     required String token,
     required String profileUsername,
   }) async {
-    final uri = Uri.parse(
-      '$baseUrl/api/answerly/v1/user/$profileUsername',
-    );
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/user/$profileUsername');
     final response = await _client.get(
       uri,
       headers: _authHeaders(username: authUsername, token: token),
@@ -835,7 +848,10 @@ class AnswerlyApi {
   Map<String, String> _optionalAuthHeaders() {
     final username = AuthSession.username;
     final token = AuthSession.token;
-    if (username == null || username.isEmpty || token == null || token.isEmpty) {
+    if (username == null ||
+        username.isEmpty ||
+        token == null ||
+        token.isEmpty) {
       return const <String, String>{};
     }
     return _authHeaders(username: username, token: token);

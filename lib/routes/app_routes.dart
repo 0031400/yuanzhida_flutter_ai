@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../pages/home_page.dart';
+import '../pages/forgot_username_page.dart';
 import '../pages/login_page.dart';
 import '../pages/placeholder_page.dart';
 import '../pages/profile_page.dart';
@@ -48,10 +49,9 @@ class AppRoutes {
           settings: settings,
         );
       case forgotUsername:
-        return _placeholderRoute(
-          settings,
-          title: '找回用户名',
-          description: '对应通过邮箱找回用户名接口。',
+        return MaterialPageRoute<void>(
+          builder: (_) => const ForgotUsernamePage(),
+          settings: settings,
         );
       case resetPassword:
         return MaterialPageRoute<void>(

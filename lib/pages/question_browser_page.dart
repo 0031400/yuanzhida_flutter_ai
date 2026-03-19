@@ -352,7 +352,10 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     });
 
     try {
-      final loginValid = await _api.checkLogin(username: username, token: token);
+      final loginValid = await _api.checkLogin(
+        username: username,
+        token: token,
+      );
       if (!loginValid) {
         await AuthSession.clear();
         if (!mounted) {
@@ -615,10 +618,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     }
 
     if (_listError != null) {
-      return _ErrorState(
-        message: _listError!,
-        onRetry: () => _loadQuestions(),
-      );
+      return _ErrorState(message: _listError!, onRetry: () => _loadQuestions());
     }
 
     if (_questions.isEmpty) {
@@ -678,7 +678,10 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                     spacing: 10,
                     runSpacing: 8,
                     children: [
-                      _InfoTag(icon: Icons.person_outline, label: item.username),
+                      _InfoTag(
+                        icon: Icons.person_outline,
+                        label: item.username,
+                      ),
                       _InfoTag(
                         icon: Icons.remove_red_eye_outlined,
                         label: '${item.viewCount}',
@@ -808,7 +811,9 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainer,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: theme.colorScheme.outlineVariant),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -838,10 +843,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           ),
         if (_answerError != null) ...[
           const SizedBox(height: 12),
-          Text(
-            _answerError!,
-            style: TextStyle(color: theme.colorScheme.error),
-          ),
+          Text(_answerError!, style: TextStyle(color: theme.colorScheme.error)),
         ],
         const SizedBox(height: 20),
         FilledButton(
@@ -921,10 +923,22 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
               label: _categoryNameOf(detail.category),
             ),
             _InfoTag(icon: Icons.person_outline, label: detail.username),
-            _InfoTag(icon: Icons.remove_red_eye_outlined, label: '${detail.viewCount} 浏览'),
-            _InfoTag(icon: Icons.chat_bubble_outline, label: '${detail.commentCount} 解答'),
-            _InfoTag(icon: Icons.star_border, label: '${detail.collectCount} 收藏'),
-            _InfoTag(icon: Icons.thumb_up_alt_outlined, label: '${detail.likeCount} 点赞'),
+            _InfoTag(
+              icon: Icons.remove_red_eye_outlined,
+              label: '${detail.viewCount} 浏览',
+            ),
+            _InfoTag(
+              icon: Icons.chat_bubble_outline,
+              label: '${detail.commentCount} 解答',
+            ),
+            _InfoTag(
+              icon: Icons.star_border,
+              label: '${detail.collectCount} 收藏',
+            ),
+            _InfoTag(
+              icon: Icons.thumb_up_alt_outlined,
+              label: '${detail.likeCount} 点赞',
+            ),
           ],
         ),
         const SizedBox(height: 20),
@@ -1094,10 +1108,7 @@ class _CommentCard extends StatelessWidget {
             ),
             if (comment.commentTo != null && comment.commentTo!.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(
-                '回复 ${comment.commentTo}',
-                style: theme.textTheme.bodySmall,
-              ),
+              Text('回复 ${comment.commentTo}', style: theme.textTheme.bodySmall),
             ],
             const SizedBox(height: 10),
             Text(
@@ -1131,8 +1142,14 @@ class _CommentCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 8,
               children: [
-                _InfoTag(icon: Icons.thumb_up_alt_outlined, label: '${comment.likeCount}'),
-                _InfoTag(icon: Icons.verified_outlined, label: '${comment.useful} 有用'),
+                _InfoTag(
+                  icon: Icons.thumb_up_alt_outlined,
+                  label: '${comment.likeCount}',
+                ),
+                _InfoTag(
+                  icon: Icons.verified_outlined,
+                  label: '${comment.useful} 有用',
+                ),
                 _InfoTag(
                   icon: Icons.schedule,
                   label: _formatDateTime(comment.createTime),
@@ -1141,7 +1158,10 @@ class _CommentCard extends StatelessWidget {
             ),
             if (comment.childComments.isNotEmpty) ...[
               const SizedBox(height: 14),
-              Text('子回复 ${comment.childComments.length}', style: theme.textTheme.labelLarge),
+              Text(
+                '子回复 ${comment.childComments.length}',
+                style: theme.textTheme.labelLarge,
+              ),
               const SizedBox(height: 8),
               for (final child in comment.childComments)
                 Container(
@@ -1268,10 +1288,7 @@ class _ErrorState extends StatelessWidget {
           Text(message, textAlign: TextAlign.center),
           if (onRetry != null) ...[
             const SizedBox(height: 12),
-            FilledButton.tonal(
-              onPressed: onRetry,
-              child: const Text('重试'),
-            ),
+            FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
           ],
         ],
       ),

@@ -20,7 +20,10 @@ class AuthSession {
     final prefs = await SharedPreferences.getInstance();
     final username = prefs.getString(_usernameKey);
     final token = prefs.getString(_tokenKey);
-    if (username == null || username.isEmpty || token == null || token.isEmpty) {
+    if (username == null ||
+        username.isEmpty ||
+        token == null ||
+        token.isEmpty) {
       await clear();
       return;
     }

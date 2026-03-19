@@ -113,7 +113,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _goToEdit() async {
-    final changed = await Navigator.of(context).pushNamed(AppRoutes.profileEdit);
+    final changed = await Navigator.of(
+      context,
+    ).pushNamed(AppRoutes.profileEdit);
     if (!mounted) {
       return;
     }
@@ -225,7 +227,9 @@ class _ProfilePageState extends State<ProfilePage> {
             radius: 28,
             backgroundColor: Colors.white.withValues(alpha: 0.18),
             child: Text(
-              username.isNotEmpty ? username.substring(0, 1).toUpperCase() : '?',
+              username.isNotEmpty
+                  ? username.substring(0, 1).toUpperCase()
+                  : '?',
               style: theme.textTheme.headlineSmall?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
@@ -327,26 +331,14 @@ class _ProfilePageState extends State<ProfilePage> {
           _InfoRow(label: '完整手机号', value: profile.phone),
           _InfoRow(label: '已解决题目', value: '${profile.solvedCount}'),
           _InfoRow(label: '累计获赞', value: '${profile.likeCount}'),
-          _InfoRow(
-            label: 'Token',
-            value: _maskToken(AuthSession.token ?? ''),
-          ),
-          _InfoRow(
-            label: 'API',
-            value: AppConfig.apiBaseUrl,
-          ),
+          _InfoRow(label: 'Token', value: _maskToken(AuthSession.token ?? '')),
+          _InfoRow(label: 'API', value: AppConfig.apiBaseUrl),
           const SizedBox(height: 16),
           _InfoBlock(label: '简介快照', value: profile.introduction),
           const SizedBox(height: 16),
-           FilledButton(
-             onPressed: _goToEdit,
-             child: const Text('编辑资料'),
-           ),
-           const SizedBox(height: 12),
-           OutlinedButton(
-             onPressed: _goToLogin,
-             child: const Text('返回登录页'),
-           ),
+          FilledButton(onPressed: _goToEdit, child: const Text('编辑资料')),
+          const SizedBox(height: 12),
+          OutlinedButton(onPressed: _goToLogin, child: const Text('返回登录页')),
         ],
       ),
     );
@@ -556,10 +548,7 @@ class _NoticeCard extends StatelessWidget {
           children: [
             Expanded(child: Text(message)),
             const SizedBox(width: 12),
-            FilledButton.tonal(
-              onPressed: onAction,
-              child: Text(actionLabel),
-            ),
+            FilledButton.tonal(onPressed: onAction, child: Text(actionLabel)),
           ],
         ),
       ),

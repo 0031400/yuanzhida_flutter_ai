@@ -325,9 +325,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: () {
-                          Navigator.of(context).pushReplacementNamed(
-                            AppRoutes.login,
-                          );
+                          Navigator.of(
+                            context,
+                          ).pushReplacementNamed(AppRoutes.login);
                         },
                         child: const Text('已有账号，返回登录'),
                       ),

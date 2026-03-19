@@ -264,6 +264,14 @@ class _LoginPageState extends State<LoginPage> {
                             onPressed: () {
                               Navigator.of(
                                 context,
+                              ).pushNamed(AppRoutes.forgotUsername);
+                            },
+                            child: const Text('忘记用户名？去找回'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(
+                                context,
                               ).pushNamed(AppRoutes.resetPassword);
                             },
                             child: const Text('忘记密码？去重置'),

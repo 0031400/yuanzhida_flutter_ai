@@ -25,11 +25,8 @@ class HtmlImageView extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
-      errorBuilder: (_, _, _) => _ImageErrorBox(
-        width: width,
-        height: height,
-        errorText: errorText,
-      ),
+      errorBuilder: (_, _, _) =>
+          _ImageErrorBox(width: width, height: height, errorText: errorText),
     );
     if (borderRadius != null) {
       child = ClipRRect(borderRadius: borderRadius!, child: child);
