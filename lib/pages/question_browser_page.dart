@@ -6,6 +6,7 @@ import '../config/app_config.dart';
 import '../routes/app_routes.dart';
 import '../services/answerly_api.dart';
 import '../services/auth_session.dart';
+import '../utils/browser_url.dart';
 import '../widgets/html_image_view.dart';
 
 class QuestionBrowserPage extends StatefulWidget {
@@ -165,6 +166,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           _commentError = null;
         }
       });
+      _syncQuestionBrowserUrl(selectedId);
 
       if (selectedId != null) {
         await _loadSelection(selectedId);
@@ -207,7 +209,18 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     return '未知科目';
   }
 
+  void _syncQuestionBrowserUrl(int? questionId) {
+    if (widget.hideQuestionList) {
+      return;
+    }
+    final path = questionId == null
+        ? AppRoutes.questionList
+        : '${AppRoutes.questionStandalonePrefix}$questionId';
+    replaceBrowserPath(path);
+  }
+
   Future<void> _loadSelection(int questionId) async {
+    _syncQuestionBrowserUrl(questionId);
     setState(() {
       _selectedQuestionId = questionId;
       _loadingDetail = true;
@@ -871,6 +884,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
         _comments = const [];
         _commentTotal = 0;
       });
+      _syncQuestionBrowserUrl(null);
       await _loadQuestions();
     } on ApiException catch (error) {
       if (error.code == 'A000204') {

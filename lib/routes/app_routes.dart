@@ -188,10 +188,16 @@ class AppRoutes {
   }
 
   static int? _readQuestionIdFromPath(String? path) {
-    if (path == null || !path.startsWith(questionStandalonePrefix)) {
+    if (path == null) {
       return null;
     }
-    final rawId = path.substring(questionStandalonePrefix.length);
+    final prefix = path.startsWith(questionStandalonePrefix)
+        ? questionStandalonePrefix
+        : null;
+    if (prefix == null) {
+      return null;
+    }
+    final rawId = path.substring(prefix.length);
     if (rawId.isEmpty || rawId.contains('/')) {
       return null;
     }
