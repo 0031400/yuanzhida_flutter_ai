@@ -36,6 +36,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   bool _submittingAnswer = false;
   bool _likingQuestion = false;
   bool _collectingQuestion = false;
+  bool _deletingQuestion = false;
   final Set<int> _likingCommentIds = <int>{};
   bool _answerMode = false;
   String? _categoryError;
@@ -653,6 +654,105 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     }
   }
 
+  Future<void> _deleteQuestion() async {
+    final detail = _selectedQuestion;
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    if (detail == null || username == null || token == null) {
+      await _ensureLoggedInForQuestionAction();
+      return;
+    }
+    if (username != detail.username) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('只有题目作者可以删除题目')));
+      }
+      return;
+    }
+    if (!await _ensureLoggedInForQuestionAction()) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('删除题目'),
+          content: Text('确认删除“${detail.title}”吗？此操作不可恢复。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('确认删除'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _deletingQuestion = true;
+      _detailError = null;
+    });
+
+    try {
+      await _api.deleteQuestion(
+        username: username,
+        token: token,
+        id: detail.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('题目已删除')));
+      setState(() {
+        _selectedQuestion = null;
+        _selectedQuestionId = null;
+        _comments = const [];
+        _commentTotal = 0;
+      });
+      await _loadQuestions();
+    } on ApiException catch (error) {
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message ?? '删除题目失败')));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('网络异常，请稍后重试')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deletingQuestion = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -1124,6 +1224,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     if (detail == null) {
       return const _EmptyState(message: '请选择左侧题目');
     }
+    final canDeleteQuestion = AuthSession.username == detail.username;
 
     final images = detail.images
         .split(',')
@@ -1181,7 +1282,8 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           runSpacing: 12,
           children: [
             FilledButton.tonalIcon(
-              onPressed: _likingQuestion || _collectingQuestion
+              onPressed:
+                  _likingQuestion || _collectingQuestion || _deletingQuestion
                   ? null
                   : _likeQuestion,
               icon: _likingQuestion
@@ -1198,7 +1300,8 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
               label: Text(_isLiked(detail.likeStatus) ? '取消点赞' : '点赞题目'),
             ),
             FilledButton.tonalIcon(
-              onPressed: _likingQuestion || _collectingQuestion
+              onPressed:
+                  _likingQuestion || _collectingQuestion || _deletingQuestion
                   ? null
                   : _collectQuestion,
               icon: _collectingQuestion
@@ -1214,6 +1317,25 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                     ),
               label: Text(_isCollected(detail.collectStatus) ? '取消收藏' : '收藏题目'),
             ),
+            if (canDeleteQuestion)
+              FilledButton.icon(
+                onPressed:
+                    _likingQuestion || _collectingQuestion || _deletingQuestion
+                    ? null
+                    : _deleteQuestion,
+                icon: _deletingQuestion
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline),
+                label: const Text('删除题目'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 20),

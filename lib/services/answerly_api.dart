@@ -617,6 +617,23 @@ class AnswerlyApi {
     _ensureSuccessBody(response.body);
   }
 
+  Future<void> deleteQuestion({
+    required String username,
+    required String token,
+    required int id,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/answerly/v1/question',
+    ).replace(queryParameters: {'id': '$id'});
+    final response = await _client.delete(
+      uri,
+      headers: _authHeaders(username: username, token: token),
+    );
+
+    _ensureSuccessStatus(response, fallbackMessage: 'Delete question failed');
+    _ensureSuccessBody(response.body);
+  }
+
   Future<String> uploadImage({
     required String username,
     required String token,
