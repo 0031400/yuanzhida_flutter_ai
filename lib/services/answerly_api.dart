@@ -197,6 +197,20 @@ class CreateQuestionRequest {
   final String content;
 }
 
+class UpdateQuestionSolvedRequest {
+  const UpdateQuestionSolvedRequest({
+    required this.id,
+    required this.solvedFlag,
+  });
+
+  final int id;
+  final int solvedFlag;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{'id': id, 'solvedFlag': solvedFlag};
+  }
+}
+
 class CreateCommentRequest {
   const CreateCommentRequest({
     required this.questionId,
@@ -795,6 +809,29 @@ class AnswerlyApi {
     );
 
     _ensureSuccessStatus(response, fallbackMessage: 'Delete question failed');
+    _ensureSuccessBody(response.body);
+  }
+
+  Future<void> updateQuestionSolved({
+    required String username,
+    required String token,
+    required UpdateQuestionSolvedRequest request,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/question');
+    final headers = <String, String>{
+      ..._authHeaders(username: username, token: token),
+      'Content-Type': 'application/json',
+    };
+    final response = await _client.put(
+      uri,
+      headers: headers,
+      body: jsonEncode(request.toJson()),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Update question solved status failed',
+    );
     _ensureSuccessBody(response.body);
   }
 

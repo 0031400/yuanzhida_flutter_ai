@@ -38,6 +38,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   bool _likingQuestion = false;
   bool _collectingQuestion = false;
   bool _deletingQuestion = false;
+  bool _markingQuestionSolved = false;
   final Set<int> _likingCommentIds = <int>{};
   final Set<int> _deletingCommentIds = <int>{};
   bool _answerMode = false;
@@ -803,6 +804,79 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     }
   }
 
+  Future<void> _markQuestionSolved() async {
+    final detail = _selectedQuestion;
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    if (detail == null || username == null || token == null) {
+      await _ensureLoggedInForQuestionAction();
+      return;
+    }
+    if (username != detail.username) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('只有题目作者可以标记已解答')));
+      }
+      return;
+    }
+    if (detail.solvedFlag == 1) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('该题目已标记为已解答')));
+      }
+      return;
+    }
+    if (!await _ensureLoggedInForQuestionAction()) {
+      return;
+    }
+
+    setState(() {
+      _markingQuestionSolved = true;
+      _detailError = null;
+    });
+
+    try {
+      await _api.updateQuestionSolved(
+        username: username,
+        token: token,
+        request: UpdateQuestionSolvedRequest(id: detail.id, solvedFlag: 1),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('题目已标记为已解答')));
+      await _loadSelection(detail.id);
+      await _loadQuestions(initialQuestionId: detail.id);
+    } on ApiException catch (error) {
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? '标记题目已解答失败')),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('网络异常，请稍后重试')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _markingQuestionSolved = false;
+        });
+      }
+    }
+  }
+
   Future<void> _deleteComment(CommentItem comment) async {
     final username = AuthSession.username;
     final token = AuthSession.token;
@@ -1437,6 +1511,8 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     }
     final canDeleteQuestion =
         AuthSession.username == detail.username && detail.commentCount == 0;
+    final canMarkSolved =
+        AuthSession.username == detail.username && detail.solvedFlag != 1;
 
     final images = detail.images
         .split(',')
@@ -1495,7 +1571,10 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           children: [
             FilledButton.tonalIcon(
               onPressed:
-                  _likingQuestion || _collectingQuestion || _deletingQuestion
+                  _likingQuestion ||
+                      _collectingQuestion ||
+                      _deletingQuestion ||
+                      _markingQuestionSolved
                   ? null
                   : _likeQuestion,
               icon: _likingQuestion
@@ -1513,7 +1592,10 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
             ),
             FilledButton.tonalIcon(
               onPressed:
-                  _likingQuestion || _collectingQuestion || _deletingQuestion
+                  _likingQuestion ||
+                      _collectingQuestion ||
+                      _deletingQuestion ||
+                      _markingQuestionSolved
                   ? null
                   : _collectQuestion,
               icon: _collectingQuestion
@@ -1529,10 +1611,31 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                     ),
               label: Text(_isCollected(detail.collectStatus) ? '取消收藏' : '收藏题目'),
             ),
+            if (canMarkSolved)
+              FilledButton.tonalIcon(
+                onPressed:
+                    _likingQuestion ||
+                        _collectingQuestion ||
+                        _deletingQuestion ||
+                        _markingQuestionSolved
+                    ? null
+                    : _markQuestionSolved,
+                icon: _markingQuestionSolved
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_circle_outline),
+                label: const Text('标记已解答'),
+              ),
             if (canDeleteQuestion)
               FilledButton.icon(
                 onPressed:
-                    _likingQuestion || _collectingQuestion || _deletingQuestion
+                    _likingQuestion ||
+                        _collectingQuestion ||
+                        _deletingQuestion ||
+                        _markingQuestionSolved
                     ? null
                     : _deleteQuestion,
                 icon: _deletingQuestion
