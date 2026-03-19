@@ -18,6 +18,7 @@ class AppRoutes {
   static const forgotUsername = '/forgot-username';
   static const resetPassword = '/reset-password';
   static const questionList = '/questions';
+  static const questionStandalonePrefix = '/question/';
   static const questionCreate = '/questions/create';
   static const questionDetail = '/questions/detail';
   static const myQuestions = '/me/questions';
@@ -32,6 +33,16 @@ class AppRoutes {
   static const categoryManage = '/admin/categories';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
+    final standaloneQuestionId = _readQuestionIdFromPath(settings.name);
+    if (standaloneQuestionId != null) {
+      return MaterialPageRoute<void>(
+        builder: (_) => QuestionBrowserPage(
+          initialQuestionId: standaloneQuestionId,
+          hideQuestionList: true,
+        ),
+        settings: settings,
+      );
+    }
     switch (settings.name) {
       case login:
         return MaterialPageRoute<void>(
@@ -174,5 +185,16 @@ class AppRoutes {
       return int.tryParse(value?.toString() ?? '');
     }
     return null;
+  }
+
+  static int? _readQuestionIdFromPath(String? path) {
+    if (path == null || !path.startsWith(questionStandalonePrefix)) {
+      return null;
+    }
+    final rawId = path.substring(questionStandalonePrefix.length);
+    if (rawId.isEmpty || rawId.contains('/')) {
+      return null;
+    }
+    return int.tryParse(rawId);
   }
 }

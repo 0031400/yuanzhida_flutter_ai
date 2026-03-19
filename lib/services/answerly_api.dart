@@ -211,6 +211,20 @@ class UpdateQuestionSolvedRequest {
   }
 }
 
+class UpdateCommentUsefulRequest {
+  const UpdateCommentUsefulRequest({
+    required this.id,
+    required this.useful,
+  });
+
+  final int id;
+  final int useful;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{'id': id, 'useful': useful};
+  }
+}
+
 class CreateCommentRequest {
   const CreateCommentRequest({
     required this.questionId,
@@ -971,6 +985,29 @@ class AnswerlyApi {
     );
 
     _ensureSuccessStatus(response, fallbackMessage: 'Create comment failed');
+    _ensureSuccessBody(response.body);
+  }
+
+  Future<void> updateCommentUseful({
+    required String username,
+    required String token,
+    required UpdateCommentUsefulRequest request,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/comment');
+    final headers = <String, String>{
+      ..._authHeaders(username: username, token: token),
+      'Content-Type': 'application/json',
+    };
+    final response = await _client.put(
+      uri,
+      headers: headers,
+      body: jsonEncode(request.toJson()),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Update comment useful status failed',
+    );
     _ensureSuccessBody(response.body);
   }
 

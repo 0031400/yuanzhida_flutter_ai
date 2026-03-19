@@ -9,9 +9,14 @@ import '../services/auth_session.dart';
 import '../widgets/html_image_view.dart';
 
 class QuestionBrowserPage extends StatefulWidget {
-  const QuestionBrowserPage({super.key, this.initialQuestionId});
+  const QuestionBrowserPage({
+    super.key,
+    this.initialQuestionId,
+    this.hideQuestionList = false,
+  });
 
   final int? initialQuestionId;
+  final bool hideQuestionList;
 
   @override
   State<QuestionBrowserPage> createState() => _QuestionBrowserPageState();
@@ -41,6 +46,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   bool _markingQuestionSolved = false;
   final Set<int> _likingCommentIds = <int>{};
   final Set<int> _deletingCommentIds = <int>{};
+  final Set<int> _markingUsefulCommentIds = <int>{};
   bool _answerMode = false;
   CommentItem? _replyTargetComment;
   String? _categoryError;
@@ -70,6 +76,10 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     int? initialQuestionId,
   }) async {
     await _loadCategories(forceRefresh: forceRefreshCategories);
+    if (widget.hideQuestionList && initialQuestionId != null) {
+      await _loadSelection(initialQuestionId);
+      return;
+    }
     await _loadQuestions(initialQuestionId: initialQuestionId);
   }
 
@@ -697,6 +707,90 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     }
   }
 
+  Future<void> _markCommentUseful(CommentItem comment) async {
+    final detail = _selectedQuestion;
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    final questionId = _selectedQuestionId;
+    if (detail == null || username == null || token == null) {
+      await _ensureLoggedInForQuestionAction();
+      return;
+    }
+    if (questionId == null) {
+      return;
+    }
+    if (username != detail.username) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('只有题目作者可以标记解答有用')));
+      }
+      return;
+    }
+    if (comment.parentCommentId != 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('只能标记顶级解答为有用')));
+      }
+      return;
+    }
+    if (comment.useful > 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('该解答已标记为有用')));
+      }
+      return;
+    }
+    if (!await _ensureLoggedInForQuestionAction()) {
+      return;
+    }
+
+    setState(() {
+      _markingUsefulCommentIds.add(comment.id);
+      _commentError = null;
+    });
+
+    try {
+      await _api.updateCommentUseful(
+        username: username,
+        token: token,
+        request: UpdateCommentUsefulRequest(id: comment.id, useful: 1),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已标记该解答为有用')));
+      await _loadSelection(questionId);
+    } on ApiException catch (error) {
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? '标记解答有用失败')),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('网络异常，请稍后重试')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _markingUsefulCommentIds.remove(comment.id);
+        });
+      }
+    }
+  }
+
   Future<void> _deleteQuestion() async {
     final detail = _selectedQuestion;
     final username = AuthSession.username;
@@ -992,6 +1086,7 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final showQuestionListPanel = !widget.hideQuestionList || _answerMode;
 
     return Scaffold(
       appBar: AppBar(
@@ -1012,7 +1107,9 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
             icon: Icon(
               _answerMode ? Icons.list_alt_outlined : Icons.edit_note_outlined,
             ),
-            tooltip: _answerMode ? '返回题目列表' : '进入新建解答',
+            tooltip: widget.hideQuestionList
+                ? (_answerMode ? '返回详情视图' : '进入新建解答')
+                : (_answerMode ? '返回题目列表' : '进入新建解答'),
           ),
           IconButton(
             onPressed: () async {
@@ -1028,7 +1125,10 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           IconButton(
             onPressed: _loadingCategories || _loadingQuestions
                 ? null
-                : () => _loadInitialData(forceRefreshCategories: true),
+                : () => _loadInitialData(
+                    forceRefreshCategories: true,
+                    initialQuestionId: widget.initialQuestionId,
+                  ),
             icon: const Icon(Icons.refresh),
             tooltip: '刷新',
           ),
@@ -1046,13 +1146,15 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Expanded(
-                      flex: 3,
-                      child: _answerMode
-                          ? _buildAnswerComposerPanel()
-                          : _buildQuestionListPanel(),
-                    ),
-                    const SizedBox(width: 16),
+                    if (showQuestionListPanel) ...[
+                      Expanded(
+                        flex: 3,
+                        child: _answerMode
+                            ? _buildAnswerComposerPanel()
+                            : _buildQuestionListPanel(),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
                     Expanded(flex: 4, child: _buildQuestionDetailPanel()),
                     const SizedBox(width: 16),
                     Expanded(flex: 4, child: _buildCommentPanel()),
@@ -1066,13 +1168,15 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Expanded(
-                      flex: 4,
-                      child: _answerMode
-                          ? _buildAnswerComposerPanel()
-                          : _buildQuestionListPanel(),
-                    ),
-                    const SizedBox(width: 16),
+                    if (showQuestionListPanel) ...[
+                      Expanded(
+                        flex: 4,
+                        child: _answerMode
+                            ? _buildAnswerComposerPanel()
+                            : _buildQuestionListPanel(),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
                     Expanded(
                       flex: 6,
                       child: Column(
@@ -1091,13 +1195,15 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                SizedBox(
-                  height: _answerMode ? 520 : 420,
-                  child: _answerMode
-                      ? _buildAnswerComposerPanel()
-                      : _buildQuestionListPanel(),
-                ),
-                const SizedBox(height: 16),
+                if (showQuestionListPanel) ...[
+                  SizedBox(
+                    height: _answerMode ? 520 : 420,
+                    child: _answerMode
+                        ? _buildAnswerComposerPanel()
+                        : _buildQuestionListPanel(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 SizedBox(height: 360, child: _buildQuestionDetailPanel()),
                 const SizedBox(height: 16),
                 SizedBox(height: 420, child: _buildCommentPanel()),
@@ -1723,10 +1829,16 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
           comment: comment,
           showReplyAction: _answerMode,
           isTopLevel: true,
+          canMarkUseful:
+              _selectedQuestion?.username == AuthSession.username &&
+              comment.useful == 0,
           isLikingComment: (commentId) => _likingCommentIds.contains(commentId),
           isDeletingComment: (commentId) =>
               _deletingCommentIds.contains(commentId),
+          isMarkingUsefulComment: (commentId) =>
+              _markingUsefulCommentIds.contains(commentId),
           onLikeComment: _likeComment,
+          onMarkUsefulComment: _markCommentUseful,
           onReplyComment: _startReplyToComment,
           onDeleteComment: _deleteComment,
           onPreviewImage: _showImageViewer,
@@ -1784,9 +1896,12 @@ class _CommentCard extends StatefulWidget {
     required this.comment,
     required this.showReplyAction,
     this.isTopLevel = false,
+    this.canMarkUseful = false,
     required this.isLikingComment,
     required this.isDeletingComment,
+    required this.isMarkingUsefulComment,
     required this.onLikeComment,
+    required this.onMarkUsefulComment,
     required this.onReplyComment,
     required this.onDeleteComment,
     required this.onPreviewImage,
@@ -1795,9 +1910,12 @@ class _CommentCard extends StatefulWidget {
   final CommentItem comment;
   final bool showReplyAction;
   final bool isTopLevel;
+  final bool canMarkUseful;
   final bool Function(int commentId) isLikingComment;
   final bool Function(int commentId) isDeletingComment;
+  final bool Function(int commentId) isMarkingUsefulComment;
   final ValueChanged<CommentItem> onLikeComment;
+  final ValueChanged<CommentItem> onMarkUsefulComment;
   final ValueChanged<CommentItem> onReplyComment;
   final ValueChanged<CommentItem> onDeleteComment;
   final ValueChanged<String> onPreviewImage;
@@ -1826,6 +1944,7 @@ class _CommentCardState extends State<_CommentCard> {
     final theme = Theme.of(context);
     final liking = widget.isLikingComment(comment.id);
     final deleting = widget.isDeletingComment(comment.id);
+    final markingUseful = widget.isMarkingUsefulComment(comment.id);
     final visibleChildren = comment.childComments
         .take(_visibleChildCount)
         .toList();
@@ -1920,7 +2039,7 @@ class _CommentCardState extends State<_CommentCard> {
               runSpacing: 8,
               children: [
                 FilledButton.tonalIcon(
-                  onPressed: liking || deleting
+                  onPressed: liking || deleting || markingUseful
                       ? null
                       : () => widget.onLikeComment(comment),
                   icon: liking
@@ -1941,9 +2060,23 @@ class _CommentCardState extends State<_CommentCard> {
                         : '点赞 ${comment.likeCount}',
                   ),
                 ),
+                if (widget.isTopLevel && widget.canMarkUseful)
+                  FilledButton.tonalIcon(
+                    onPressed: deleting || liking || markingUseful
+                        ? null
+                        : () => widget.onMarkUsefulComment(comment),
+                    icon: markingUseful
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.verified_outlined, size: 18),
+                    label: const Text('标记有用'),
+                  ),
                 if (widget.showReplyAction && widget.isTopLevel)
                   FilledButton.tonalIcon(
-                    onPressed: deleting
+                    onPressed: deleting || markingUseful
                         ? null
                         : () => widget.onReplyComment(comment),
                     icon: const Icon(Icons.reply_outlined, size: 18),
@@ -1973,9 +2106,12 @@ class _CommentCardState extends State<_CommentCard> {
                     comment: child,
                     showReplyAction: widget.showReplyAction,
                     isTopLevel: false,
+                    canMarkUseful: false,
                     isLikingComment: widget.isLikingComment,
                     isDeletingComment: widget.isDeletingComment,
+                    isMarkingUsefulComment: widget.isMarkingUsefulComment,
                     onLikeComment: widget.onLikeComment,
+                    onMarkUsefulComment: widget.onMarkUsefulComment,
                     onReplyComment: widget.onReplyComment,
                     onDeleteComment: widget.onDeleteComment,
                     onPreviewImage: widget.onPreviewImage,
