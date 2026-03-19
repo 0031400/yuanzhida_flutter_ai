@@ -34,6 +34,8 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
   bool _loadingComments = false;
   bool _uploadingAnswerImages = false;
   bool _submittingAnswer = false;
+  bool _likingQuestion = false;
+  bool _collectingQuestion = false;
   bool _answerMode = false;
   String? _categoryError;
   String? _listError;
@@ -417,6 +419,173 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
     setState(() {
       _uploadedImages.remove(image);
     });
+  }
+
+  Future<bool> _ensureLoggedInForQuestionAction() async {
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    if (username == null || token == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('请先登录后再操作')));
+      }
+      return false;
+    }
+
+    try {
+      final loginValid = await _api.checkLogin(
+        username: username,
+        token: token,
+      );
+      if (loginValid) {
+        return true;
+      }
+      await AuthSession.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('登录态已失效，请重新登录')));
+      }
+      return false;
+    } on ApiException catch (error) {
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message ?? '登录校验失败，请稍后重试')),
+        );
+      }
+      return false;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('网络异常，请稍后重试')));
+      }
+      return false;
+    }
+  }
+
+  Future<void> _likeQuestion() async {
+    final detail = _selectedQuestion;
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    if (detail == null || username == null || token == null) {
+      await _ensureLoggedInForQuestionAction();
+      return;
+    }
+    if (!await _ensureLoggedInForQuestionAction()) {
+      return;
+    }
+
+    setState(() {
+      _likingQuestion = true;
+      _detailError = null;
+    });
+
+    try {
+      await _api.likeQuestion(
+        username: username,
+        token: token,
+        request: QuestionEngagementRequest(
+          id: detail.id,
+          entityUserId: detail.userId,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isLiked(detail.likeStatus) ? '已取消点赞' : '点赞成功')),
+      );
+      await _loadSelection(detail.id);
+    } on ApiException catch (error) {
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message ?? '点赞操作失败')));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('网络异常，请稍后重试')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _likingQuestion = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _collectQuestion() async {
+    final detail = _selectedQuestion;
+    final username = AuthSession.username;
+    final token = AuthSession.token;
+    if (detail == null || username == null || token == null) {
+      await _ensureLoggedInForQuestionAction();
+      return;
+    }
+    if (!await _ensureLoggedInForQuestionAction()) {
+      return;
+    }
+
+    setState(() {
+      _collectingQuestion = true;
+      _detailError = null;
+    });
+
+    try {
+      await _api.collectQuestion(
+        username: username,
+        token: token,
+        request: QuestionEngagementRequest(
+          id: detail.id,
+          entityUserId: detail.userId,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isCollected(detail.collectStatus) ? '已取消收藏' : '收藏成功'),
+        ),
+      );
+      await _loadSelection(detail.id);
+    } on ApiException catch (error) {
+      if (error.code == 'A000204') {
+        await AuthSession.clear();
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message ?? '收藏操作失败')));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('网络异常，请稍后重试')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _collectingQuestion = false;
+        });
+      }
+    }
   }
 
   @override
@@ -941,6 +1110,47 @@ class _QuestionBrowserPageState extends State<QuestionBrowserPage> {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            FilledButton.tonalIcon(
+              onPressed: _likingQuestion || _collectingQuestion
+                  ? null
+                  : _likeQuestion,
+              icon: _likingQuestion
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      _isLiked(detail.likeStatus)
+                          ? Icons.thumb_up_alt
+                          : Icons.thumb_up_alt_outlined,
+                    ),
+              label: Text(_isLiked(detail.likeStatus) ? '取消点赞' : '点赞题目'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: _likingQuestion || _collectingQuestion
+                  ? null
+                  : _collectQuestion,
+              icon: _collectingQuestion
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      _isCollected(detail.collectStatus)
+                          ? Icons.star
+                          : Icons.star_border,
+                    ),
+              label: Text(_isCollected(detail.collectStatus) ? '取消收藏' : '收藏题目'),
+            ),
+          ],
+        ),
         const SizedBox(height: 20),
         Text(
           detail.content.isEmpty ? '暂无题目描述' : detail.content,
@@ -1338,4 +1548,18 @@ String _formatDateTime(String raw) {
   final hour = local.hour.toString().padLeft(2, '0');
   final minute = local.minute.toString().padLeft(2, '0');
   return '$year-$month-$day $hour:$minute';
+}
+
+bool _isLiked(String status) {
+  final normalized = status.trim();
+  return normalized.isNotEmpty &&
+      normalized != '未登录' &&
+      !normalized.contains('未点赞');
+}
+
+bool _isCollected(String status) {
+  final normalized = status.trim();
+  return normalized.isNotEmpty &&
+      normalized != '未登录' &&
+      !normalized.contains('未收藏');
 }

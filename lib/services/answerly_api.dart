@@ -194,6 +194,20 @@ class CreateCommentRequest {
   final String images;
 }
 
+class QuestionEngagementRequest {
+  const QuestionEngagementRequest({
+    required this.id,
+    required this.entityUserId,
+  });
+
+  final int id;
+  final int entityUserId;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{'id': id, 'entityUserId': entityUserId};
+  }
+}
+
 class UserProfile {
   const UserProfile({
     required this.id,
@@ -689,6 +703,52 @@ class AnswerlyApi {
     );
 
     _ensureSuccessStatus(response, fallbackMessage: 'Create comment failed');
+    _ensureSuccessBody(response.body);
+  }
+
+  Future<void> likeQuestion({
+    required String username,
+    required String token,
+    required QuestionEngagementRequest request,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/question/like');
+    final headers = <String, String>{
+      ..._authHeaders(username: username, token: token),
+      'Content-Type': 'application/json',
+    };
+    final response = await _client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(request.toJson()),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Like question request failed',
+    );
+    _ensureSuccessBody(response.body);
+  }
+
+  Future<void> collectQuestion({
+    required String username,
+    required String token,
+    required QuestionEngagementRequest request,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/answerly/v1/question/collect');
+    final headers = <String, String>{
+      ..._authHeaders(username: username, token: token),
+      'Content-Type': 'application/json',
+    };
+    final response = await _client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(request.toJson()),
+    );
+
+    _ensureSuccessStatus(
+      response,
+      fallbackMessage: 'Collect question request failed',
+    );
     _ensureSuccessBody(response.body);
   }
 
